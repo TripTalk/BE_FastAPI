@@ -50,6 +50,7 @@ example_prompt = """
 # 🔹 사용자 입력 데이터 구조 정의
 class TravelInput(BaseModel):
     companions: str
+    departure: str
     destination: str
     start_date: str
     end_date: str
@@ -75,6 +76,7 @@ async def create_travel_plan(data: TravelInput = Body(...)):
 ---
 
 [여행 정보]
+- 출발지: {data.departure}
 - 여행지: {data.destination}
 - 동행자: {data.companions}
 - 여행 기간: {data.start_date} ~ {data.end_date}
