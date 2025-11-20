@@ -60,13 +60,15 @@ class TravelInput(BaseModel):
 class FeedbackInput(BaseModel):
     message: str  # ✅ 사용자의 피드백 내용
 
-# 🔹 전역 변수로 최신 여행 일정 저장
+# 🔹 전역 변수로 최신 여행 일정 및 피드백 히스토리 저장
 latest_plan = None
+chat_history: list[str] = []
 
 # 🔹 1️⃣ 여행 계획 자동 생성 API
 @app.post("/Travel-Plan")
 async def create_travel_plan(data: TravelInput = Body(...)):
-    global latest_plan  # ✅ 전역 변수 선언 추가
+    global latest_plan, chat_history  # ✅ 전역 변수 선언 추가
+    chat_history = []  # 새 일정 생성 시 히스토리 초기화
 
     prompt = f"""
 당신은 전문 여행 플래너이자 컨시어지입니다.  
@@ -91,6 +93,7 @@ async def create_travel_plan(data: TravelInput = Body(...)):
    - (2) 상세 일정 섹션
 2. 여행 요약 카드에는 다음 정보를 포함하세요.
    - 여행 제목 (예: “제주도 3박 4일 힐링 여행”)
+   - 출발지
    - 여행지 이름
    - 기간 (YYYY.MM.DD 형식)
    - 동행자 유형
@@ -127,15 +130,14 @@ async def create_travel_plan(data: TravelInput = Body(...)):
     return {"plan": latest_plan}
 
 # 🔹 2️⃣ 피드백(대화형 수정) 기능 추가
-chat_history = []  # 대화 저장용 리스트 (간단 테스트용)
-
 @app.post("/feedback")
 async def feedback(data: FeedbackInput):
-    global latest_plan
+    global latest_plan, chat_history
 
     if latest_plan is None:
         return {"error": "아직 생성된 여행 일정이 없습니다. 먼저 /Travel-Plan을 호출하세요."}
-    
+
+    history_prompt = "\n".join(f"- {message}" for message in chat_history) or "이전 피드백 없음"
 
     # ✅ 프롬프트 추가
     prompt = f"""
@@ -146,6 +148,11 @@ async def feedback(data: FeedbackInput):
 
 [기존 여행 일정]
 {latest_plan}
+
+---
+
+[이전 대화 기록]
+{history_prompt}
 
 ---
 
@@ -185,6 +192,7 @@ async def feedback(data: FeedbackInput):
     model = genai.GenerativeModel("models/gemini-2.0-flash")
     response = model.generate_content(prompt)
     
-    # ✅ 최신 일정 갱신
+    # ✅ 최신 일정 갱신 및 히스토리 누적
     latest_plan = response.text
+    chat_history.append(data.message)
     return {"reply": latest_plan}
