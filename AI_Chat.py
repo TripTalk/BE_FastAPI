@@ -7,11 +7,22 @@ from pathlib import Path
 import os
 
 # 🔹 환경 변수 로드
-load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+BASE_DIR = Path(__file__).parent
+load_dotenv(dotenv_path=BASE_DIR / ".env")
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # 🔹 FastAPI 앱 생성
 app = FastAPI()
+
+# 🔹 출력 저장 경로 준비
+OUTPUT_DIR = BASE_DIR / "outputs"
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+
+def save_plan_to_file(content: str, filename: str = "latest_plan.md") -> None:
+    """가장 최신 일정을 파일로 저장해서 에디터(VSCode 등)에서 확인 가능하게 함."""
+    (OUTPUT_DIR / filename).write_text(content, encoding="utf-8")
+
 
 # 🔹 공통 출력 예시 (한 곳만 수정해도 두 API에 자동 반영)
 example_prompt = """
@@ -127,6 +138,7 @@ async def create_travel_plan(data: TravelInput = Body(...)):
     
     # ✅ 생성된 일정 저장
     latest_plan = response.text
+    save_plan_to_file(latest_plan)
     return {"plan": latest_plan}
 
 # 🔹 2️⃣ 피드백(대화형 수정) 기능 추가
@@ -194,5 +206,6 @@ async def feedback(data: FeedbackInput):
     
     # ✅ 최신 일정 갱신 및 히스토리 누적
     latest_plan = response.text
+    save_plan_to_file(latest_plan)
     chat_history.append(data.message)
     return {"reply": latest_plan}
