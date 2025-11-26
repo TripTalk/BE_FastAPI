@@ -10,7 +10,7 @@ pip install fastapi uvicorn python-dotenv google-generativeai pydantic
 가상환경 활성화 source venv/bin/activate
 
 ## FastAPI 실행
-uvicorn main:app --reload  
+uvicorn AI_Chat:app --reload  
 http://127.0.0.1:8000/docs
 
 ## 📝 Commit Message 규칙
