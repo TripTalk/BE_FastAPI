@@ -1,4 +1,9 @@
 .DS_Store
 *.env
 venv/
-latest_plan.md
+data/
+outputs/
+*.log
+__pycache__/
+*.pyc
+*.pyo
