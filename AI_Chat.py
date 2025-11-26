@@ -1,22 +1,87 @@
 from fastapi import FastAPI
 from fastapi import Body
 from pydantic import BaseModel
+from typing import List, Dict, Optional
 import google.generativeai as genai
 from dotenv import load_dotenv
 from pathlib import Path
 import os
+import json
+from datetime import datetime
+import uuid
 
-# 🔹 환경 변수 로드
 BASE_DIR = Path(__file__).parent
 load_dotenv(dotenv_path=BASE_DIR / ".env")
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# 🔹 FastAPI 앱 생성
 app = FastAPI()
+class TravelInput(BaseModel):
+    companions: str
+    departure: str
+    destination: str
+    start_date: str
+    end_date: str
+    style: list[str]
+    budget: str
 
-# 🔹 출력 저장 경로 준비
+class FeedbackInput(BaseModel):
+    message: str
+class TravelSummary(BaseModel):
+    id: str
+    title: str
+    destination: str
+    departure: str
+    start_date: str
+    end_date: str
+    companions: str
+    budget: str
+    travel_styles: List[str]
+    highlights: List[str]
+    full_plan: str
+class TravelSummaryResponse(BaseModel):
+    id: str
+    title: str
+    destination: str
+    departure: str
+    start_date: str
+    end_date: str
+    companions: str
+    budget: str
+    travel_styles: List[str]
+    highlights: List[str]
+
 OUTPUT_DIR = BASE_DIR / "outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
+
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(exist_ok=True)
+TRAVEL_SUMMARIES_FILE = DATA_DIR / "travel_summaries.json"
+travel_summaries_store: Dict[str, TravelSummary] = {}
+
+
+def load_travel_summaries() -> None:
+    """파일에서 여행 요약 정보를 로드"""
+    global travel_summaries_store
+    if TRAVEL_SUMMARIES_FILE.exists():
+        try:
+            with open(TRAVEL_SUMMARIES_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                travel_summaries_store = {
+                    k: TravelSummary(**v) for k, v in data.items()
+                }
+        except Exception as e:
+            print(f"여행 요약 데이터 로드 실패: {e}")
+            travel_summaries_store = {}
+
+
+def save_travel_summaries() -> None:
+    """여행 요약 정보를 파일에 저장"""
+    try:
+        data = {k: v.dict() for k, v in travel_summaries_store.items()}
+        with open(TRAVEL_SUMMARIES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"여행 요약 데이터 저장 실패: {e}")
 
 
 def save_plan_to_file(content: str, filename: str = "latest_plan.md") -> None:
@@ -24,12 +89,72 @@ def save_plan_to_file(content: str, filename: str = "latest_plan.md") -> None:
     (OUTPUT_DIR / filename).write_text(content, encoding="utf-8")
 
 
-# 🔹 공통 출력 예시 (한 곳만 수정해도 두 API에 자동 반영)
+def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TravelSummary:
+    """생성된 여행 계획에서 요약 정보 추출"""
+    travel_id = str(uuid.uuid4())
+    
+    lines = plan.split('\n')
+    title = f"{original_input.destination} 여행"
+    highlights = []
+    for line in lines:
+        if "**제목:**" in line:
+            title = line.split("**제목:**")[-1].strip()
+            break
+        elif "제목:" in line and not "**" in line:
+            title = line.split("제목:")[-1].strip()
+            break
+        elif line.strip().startswith("#") and ("여행" in line or "관광" in line or "투어" in line):
+            title = line.strip()
+            title = title.replace("#", "").strip()
+            break
+    in_highlight_section = False
+    for line in lines:
+        if "하이라이트" in line or "**하이라이트:**" in line:
+            in_highlight_section = True
+            continue
+        elif in_highlight_section:
+            if line.strip().startswith("•") or line.strip().startswith("-"):
+                highlight = line.strip().replace("•", "").replace("-", "").strip()
+                if highlight:
+                    highlights.append(highlight)
+            elif line.strip().startswith("**") or line.strip() == "":
+                continue
+            else:
+                in_highlight_section = False
+    
+    return TravelSummary(
+        id=travel_id,
+        title=title,
+        destination=original_input.destination,
+        departure=original_input.departure,
+        start_date=original_input.start_date,
+        end_date=original_input.end_date,
+        companions=original_input.companions,
+        budget=original_input.budget,
+        travel_styles=original_input.style,
+        highlights=highlights if highlights else [f"{original_input.destination} 탐방", "맛집 투어", "문화 체험"],
+        full_plan=plan
+    )
+
+
+def find_existing_travel(data: TravelInput) -> Optional[str]:
+    """동일한 조건의 기존 여행이 있는지 확인"""
+    for travel_id, travel in travel_summaries_store.items():
+        if (travel.destination == data.destination and 
+            travel.departure == data.departure and
+            travel.start_date == data.start_date and 
+            travel.end_date == data.end_date and
+            travel.companions == data.companions and
+            travel.budget == data.budget and
+            set(travel.travel_styles) == set(data.style)):
+            return travel_id
+    return None
+
+
 example_prompt = """
 [출력 예시]
 
-🏖️ **여행 요약**
-- **제목:** 제주도 3박 4일 힐링 여행  
+- **제목:** 제주도 3박 4일 힐링 여행
 - **여행지:** 제주도  
 - **기간:** 2024.03.15 ~ 2024.03.18  
 - **동행자:** 연인  
@@ -59,28 +184,14 @@ example_prompt = """
 현재 예산으로 중상급 숙소 선택 시 식비를 약간 조정하는 것을 추천합니다.
 """
 
-# 🔹 사용자 입력 데이터 구조 정의
-class TravelInput(BaseModel):
-    companions: str
-    departure: str
-    destination: str
-    start_date: str
-    end_date: str
-    style: list[str]
-    budget: str
-
-class FeedbackInput(BaseModel):
-    message: str  # ✅ 사용자의 피드백 내용
-
-# 🔹 전역 변수로 최신 여행 일정 및 피드백 히스토리 저장
 latest_plan = None
 chat_history: list[str] = []
 
-# 🔹 1️⃣ 여행 계획 자동 생성 API
+load_travel_summaries()
 @app.post("/Travel-Plan")
 async def create_travel_plan(data: TravelInput = Body(...)):
-    global latest_plan, chat_history  # ✅ 전역 변수 선언 추가
-    chat_history = []  # 새 일정 생성 시 히스토리 초기화
+    global latest_plan, chat_history
+    chat_history = []
 
     prompt = f"""
 당신은 전문 여행 플래너이자 컨시어지입니다.  
@@ -146,12 +257,60 @@ async def create_travel_plan(data: TravelInput = Body(...)):
     model = genai.GenerativeModel("models/gemini-2.0-flash")
     response = model.generate_content(prompt)
     
-    # ✅ 생성된 일정 저장
     latest_plan = response.text
     save_plan_to_file(latest_plan)
-    return {"plan": latest_plan}
+    
+    existing_travel_id = find_existing_travel(data)
+    
+    if existing_travel_id:
+        existing_travel = travel_summaries_store[existing_travel_id]
+        
+        updated_summary = extract_summary_from_plan(latest_plan, data)
+        updated_summary.id = existing_travel_id
+        
+        travel_summaries_store[existing_travel_id] = updated_summary
+        save_travel_summaries()
+        
+        return {
+            "plan": latest_plan,
+            "travel_id": existing_travel_id,
+            "message": "기존 여행 계획이 업데이트되었습니다.",
+            "summary": TravelSummaryResponse(
+                id=updated_summary.id,
+                title=updated_summary.title,
+                destination=updated_summary.destination,
+                departure=updated_summary.departure,
+                start_date=updated_summary.start_date,
+                end_date=updated_summary.end_date,
+                companions=updated_summary.companions,
+                budget=updated_summary.budget,
+                travel_styles=updated_summary.travel_styles,
+                highlights=updated_summary.highlights
+            )
+        }
+    else:
+        travel_summary = extract_summary_from_plan(latest_plan, data)
+        travel_summaries_store[travel_summary.id] = travel_summary
+        save_travel_summaries()
+        
+        return {
+            "plan": latest_plan,
+            "travel_id": travel_summary.id,
+            "message": "새로운 여행 계획이 생성되었습니다.",
+            "summary": TravelSummaryResponse(
+                id=travel_summary.id,
+                title=travel_summary.title,
+                destination=travel_summary.destination,
+                departure=travel_summary.departure,
+                start_date=travel_summary.start_date,
+                end_date=travel_summary.end_date,
+                companions=travel_summary.companions,
+                budget=travel_summary.budget,
+                travel_styles=travel_summary.travel_styles,
+                highlights=travel_summary.highlights
+            )
+        }
 
-# 🔹 2️⃣ 피드백(대화형 수정) 기능 추가
 @app.post("/feedback")
 async def feedback(data: FeedbackInput):
     global latest_plan, chat_history
@@ -161,7 +320,6 @@ async def feedback(data: FeedbackInput):
 
     history_prompt = "\n".join(f"- {message}" for message in chat_history) or "이전 피드백 없음"
 
-    # ✅ 프롬프트 추가
     prompt = f"""
 당신은 전문 여행 플래너이자 컨시어지입니다.
 아래의 **기존 여행 일정**을 기반으로 사용자의 피드백을 반영하여 새로운 일정을 작성하세요.
@@ -214,8 +372,68 @@ async def feedback(data: FeedbackInput):
     model = genai.GenerativeModel("models/gemini-2.0-flash")
     response = model.generate_content(prompt)
     
-    # ✅ 최신 일정 갱신 및 히스토리 누적
     latest_plan = response.text
     save_plan_to_file(latest_plan)
     chat_history.append(data.message)
+    
     return {"reply": latest_plan}
+
+@app.get("/travel-summary/{travel_id}")
+async def get_travel_summary(travel_id: str):
+    """특정 여행의 요약 정보를 조회합니다."""
+    if travel_id not in travel_summaries_store:
+        return {"error": f"여행 ID '{travel_id}'를 찾을 수 없습니다."}
+    
+    summary = travel_summaries_store[travel_id]
+    return TravelSummaryResponse(
+        id=summary.id,
+        title=summary.title,
+        destination=summary.destination,
+        departure=summary.departure,
+        start_date=summary.start_date,
+        end_date=summary.end_date,
+        companions=summary.companions,
+        budget=summary.budget,
+        travel_styles=summary.travel_styles,
+        highlights=summary.highlights
+    )
+
+@app.get("/travel-summaries")
+async def get_all_travel_summaries():
+    """저장된 모든 여행 요약 정보를 조회합니다."""
+    summaries = []
+    for summary in travel_summaries_store.values():
+        summaries.append(TravelSummaryResponse(
+            id=summary.id,
+            title=summary.title,
+            destination=summary.destination,
+            departure=summary.departure,
+            start_date=summary.start_date,
+            end_date=summary.end_date,
+            companions=summary.companions,
+            budget=summary.budget,
+            travel_styles=summary.travel_styles,
+            highlights=summary.highlights
+        ))
+    
+    return {"summaries": summaries, "total": len(summaries)}
+
+@app.get("/travel-plan/{travel_id}")
+async def get_travel_plan(travel_id: str):
+    """특정 여행의 전체 계획을 조회합니다."""
+    if travel_id not in travel_summaries_store:
+        return {"error": f"여행 ID '{travel_id}'를 찾을 수 없습니다."}
+    
+    summary = travel_summaries_store[travel_id]
+    return {"id": travel_id, "plan": summary.full_plan}
+
+@app.delete("/travel/{travel_id}")
+async def delete_travel(travel_id: str):
+    """특정 여행을 삭제합니다."""
+    if travel_id not in travel_summaries_store:
+        return {"error": f"여행 ID '{travel_id}'를 찾을 수 없습니다."}
+    
+    del travel_summaries_store[travel_id]
+    save_travel_summaries()
+    
+    return {"message": f"여행 ID '{travel_id}'가 성공적으로 삭제되었습니다."}
