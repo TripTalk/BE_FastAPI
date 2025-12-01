@@ -7,8 +7,9 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
+import re
 
 BASE_DIR = Path(__file__).parent
 load_dotenv(dotenv_path=BASE_DIR / ".env")
@@ -26,6 +27,17 @@ class TravelInput(BaseModel):
 
 class FeedbackInput(BaseModel):
     message: str
+
+class TimelineItem(BaseModel):
+    time: str
+    title: str
+    description: str
+
+class DaySchedule(BaseModel):
+    day: int
+    date: str
+    schedules: List[TimelineItem]
+
 class TravelSummary(BaseModel):
     id: str
     title: str
@@ -38,6 +50,7 @@ class TravelSummary(BaseModel):
     travel_styles: List[str]
     highlights: List[str]
     full_plan: str
+    daily_schedules: List[DaySchedule] = []
 class TravelSummaryResponse(BaseModel):
     id: str
     title: str
@@ -55,7 +68,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
-TRAVEL_SUMMARIES_FILE = DATA_DIR / "travel_summaries.json"
+TRAVEL_SUMMARIES_FILE = DATA_DIR / "travel_data.json"
 travel_summaries_store: Dict[str, TravelSummary] = {}
 
 
@@ -89,6 +102,70 @@ def save_plan_to_file(content: str, filename: str = "latest_plan.md") -> None:
     (OUTPUT_DIR / filename).write_text(content, encoding="utf-8")
 
 
+def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[DaySchedule]:
+    """AI가 생성한 JSON 타임라인 추출"""
+    daily_schedules = []
+    
+    try:
+        start_date = datetime.strptime(original_input.start_date.replace("/", "."), "%Y.%m.%d")
+    except ValueError:
+        try:
+            start_date = datetime.strptime(original_input.start_date, "%Y-%m-%d")
+        except ValueError:
+            start_date = datetime.now()
+    
+    # JSON 블록 추출
+    json_pattern = r'```json\s*\n(.*?)\n```'
+    json_matches = re.findall(json_pattern, plan, re.DOTALL)
+    
+    if json_matches:
+        try:
+            for json_str in json_matches:
+                timeline_data = json.loads(json_str)
+                
+                if isinstance(timeline_data, dict) and 'day' in timeline_data:
+                    day_num = timeline_data['day']
+                    day_date = (start_date + timedelta(days=day_num-1)).strftime("%Y.%m.%d")
+                    
+                    schedules = []
+                    for item in timeline_data.get('schedules', []):
+                        schedules.append(TimelineItem(
+                            time=item['time'],
+                            title=item['title'],
+                            description=item['description']
+                        ))
+                    
+                    daily_schedules.append(DaySchedule(
+                        day=day_num,
+                        date=day_date,
+                        schedules=schedules
+                    ))
+                
+                elif isinstance(timeline_data, list):
+                    for day_data in timeline_data:
+                        if 'day' in day_data:
+                            day_num = day_data['day']
+                            day_date = (start_date + timedelta(days=day_num-1)).strftime("%Y.%m.%d")
+                            
+                            schedules = []
+                            for item in day_data.get('schedules', []):
+                                schedules.append(TimelineItem(
+                                    time=item['time'],
+                                    title=item['title'],
+                                    description=item['description']
+                                ))
+                            
+                            daily_schedules.append(DaySchedule(
+                                day=day_num,
+                                date=day_date,
+                                schedules=schedules
+                            ))
+        except json.JSONDecodeError as e:
+            print(f"JSON 파싱 오류: {e}")
+    
+    return daily_schedules
+
+
 def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TravelSummary:
     """생성된 여행 계획에서 요약 정보 추출"""
     travel_id = str(uuid.uuid4())
@@ -99,13 +176,22 @@ def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TravelS
     for line in lines:
         if "**제목:**" in line:
             title = line.split("**제목:**")[-1].strip()
+            # 괄호 제거 (예: "제주도 여행 (3박4일)" -> "제주도 여행")
+            if '(' in title:
+                title = title.split('(')[0].strip()
             break
         elif "제목:" in line and not "**" in line:
             title = line.split("제목:")[-1].strip()
+            # 괄호 제거
+            if '(' in title:
+                title = title.split('(')[0].strip()
             break
         elif line.strip().startswith("#") and ("여행" in line or "관광" in line or "투어" in line):
             title = line.strip()
             title = title.replace("#", "").strip()
+            # 괄호 제거
+            if '(' in title:
+                title = title.split('(')[0].strip()
             break
     in_highlight_section = False
     for line in lines:
@@ -122,6 +208,9 @@ def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TravelS
             else:
                 in_highlight_section = False
     
+    # 타임라인 정보 추출
+    daily_schedules = extract_timeline_from_plan(plan, original_input)
+    
     return TravelSummary(
         id=travel_id,
         title=title,
@@ -133,7 +222,8 @@ def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TravelS
         budget=original_input.budget,
         travel_styles=original_input.style,
         highlights=highlights if highlights else [f"{original_input.destination} 탐방", "맛집 투어", "문화 체험"],
-        full_plan=plan
+        full_plan=plan,
+        daily_schedules=daily_schedules
     )
 
 
@@ -177,8 +267,37 @@ example_prompt = """
 - **저녁:** 해안도로 드라이브 & 숙소 휴식  
 🏨 숙소: "신라스테이 제주" (1박 약 120,000원)
 
+```json
+{
+  "day": 1,
+  "schedules": [
+    {"time": "09:00", "title": "김포공항 도착", "description": "비행기 탑승"},
+    {"time": "10:00", "title": "렌터카 픽업", "description": "차량 대여"},
+    {"time": "11:00", "title": "앤트러사이트 제주", "description": "카페"},
+    {"time": "12:30", "title": "연돈볼카츠", "description": "점심"},
+    {"time": "14:00", "title": "성산일출봉 등반", "description": "등산과 전망"},
+    {"time": "15:00", "title": "신라스테이 제주", "description": "호텔 체크인"},
+    {"time": "17:00", "title": "해안도로 드라이브", "description": "해변 드라이브"},
+    {"time": "19:00", "title": "해녀의 집", "description": "저녁"},
+    {"time": "21:00", "title": "숙소 휴식", "description": "자유시간"}
+  ]
+}
+```
+
 📅 **2일차**
+- **오전:** 숙소 체크아웃 (10:00) → 관광 시작
 ...
+
+```json
+{
+  "day": 2,
+  "schedules": [
+    {"time": "10:00", "title": "신라스테이 제주", "description": "호텔 체크아웃"},
+    {"time": "11:00", "title": "한라산 트레킹", "description": "자연 탐방"},
+    {"time": "13:00", "title": "산방산 맛집", "description": "해물칼국수 점심"}
+  ]
+}
+```
 
 💬 **예산 피드백 (필요한 경우만):**  
 현재 예산으로 중상급 숙소 선택 시 식비를 약간 조정하는 것을 추천합니다.
@@ -241,6 +360,25 @@ async def create_travel_plan(data: TravelInput = Body(...)):
 6. 숙소는 실제 숙소명과 1박 평균 요금(원 또는 현지 통화)을 명시하세요.
 7. 전체 일정은 주어진 예산 내에서 현실적으로 구성하세요. 교통비, 숙박비, 식비, 액티비티 비용을 모두 고려하세요.
 8. 예산이 명확히 부족하거나 과도할 때만 간단히 피드백을 추가하세요.
+9. **[필수] 각 일자 섹션 마지막에 타임라인 JSON을 반드시 생성하세요:**
+   - 형식: ```json 코드 블록 사용
+   - 구조: {{"day": 숫자, "schedules": [{{"time": "HH:MM", "title": "활동명", "description": "간결한 설명"}}]}}
+   - **description 작성 가이드:**
+     * 2-5단어 정도의 간결한 설명
+     * title과 잘 어울리는 자연스러운 표현 사용
+     * **음식점**: "점심" 또는 "저녁"으로 표기 (예: "점심", "저녁")
+     * **카페**: "카페"로 통일
+     * **관광/활동**: 활동 성격 표현 (예: "등산과 전망", "바다 구경", "자연 탐방", "해변 드라이브")
+     * **이동**: 이동 수단 표현 (예: "비행기 탑승", "차량 대여", "택시 이동")
+     * **숙소**: "호텔 체크인", "호텔 체크아웃" 등
+     * **휴식**: "자유시간", "호텔 휴식" 등
+   - 모든 활동을 시간순으로 포함 (공항, 렌터카, 카페, 식사, 관광, 체크인 등)
+   - **숙소 체크인/체크아웃 시간 규칙:**
+     * 체크인: 일반적으로 15:00~18:00 사이 (호텔/펜션 표준)
+     * 체크아웃: 일반적으로 10:00~12:00 사이 (호텔/펜션 표준)
+     * 실제 숙소 정책에 따라 조정 가능 (예: 게스트하우스는 더 유연할 수 있음)
+     * 체크인 전에 도착하면 짐 보관만 하고, 체크인 시간 이후에 정식 체크인
+     * 마지막 날은 체크아웃 후 관광 또는 귀가
 
 ---
 
@@ -250,6 +388,7 @@ async def create_travel_plan(data: TravelInput = Body(...)):
 
 ---
 이제 위 형식을 기반으로, 실제 장소와 최신 정보를 반영한 여행 일정을 작성하세요.
+**반드시 각 일자마다 ```json 코드 블록을 생성하세요.**
 """
 
 
