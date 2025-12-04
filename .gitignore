@@ -15,12 +15,10 @@ env/
 ENV/
 .venv/
 
-# Environment Variables
 .env
 .env.local
 .env.*.local
 
-# Security & Credentials
 *.pem
 *.key
 *.crt
