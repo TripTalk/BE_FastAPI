@@ -42,7 +42,7 @@ class FeedbackInput(BaseModel):
     message: str
 
 class TimelineItem(BaseModel):
-    sequence: int
+    index: int
     time: str
     title: str
     description: str
@@ -152,7 +152,7 @@ def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[D
                     schedules = []
                     for idx, item in enumerate(timeline_data.get('schedules', []), start=1):
                         schedules.append(TimelineItem(
-                            sequence=idx,
+                            index=idx,
                             time=item['time'],
                             title=item['title'],
                             description=item['description']
@@ -173,7 +173,7 @@ def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[D
                             schedules = []
                             for idx, item in enumerate(day_data.get('schedules', []), start=1):
                                 schedules.append(TimelineItem(
-                                    sequence=idx,
+                                    index=idx,
                                     time=item['time'],
                                     title=item['title'],
                                     description=item['description']
@@ -342,15 +342,22 @@ async def create_travel_plan(data: TravelInput = Body(...)):
    - 예산 범위
    - 여행 하이라이트 (3~5개 핵심 키워드 문장형, 예: "성산일출봉 일출 감상", "한라산 트레킹", "오션뷰 카페 투어")
 3. 상세 일정은 일자별로 오전/오후/저녁 단위로 나누고 짧은 설명을 포함하세요.
-4. 이동수단은 각 일자의 상단에 명시하세요.
+4. 이동수단은 각 일자의 상단에 명시하고, 반드시 실제 운행 시간표와 정확한 요금을 확인하여 제공하세요.
    - 실제 이용 가능한 이동수단 (비행기, 기차, 고속버스, 택시, 렌터카, 대중교통 등)
    - 출발지 → 목적지 경로
-   - 편도 또는 왕복 요금(원 또는 현지 통화)
-   - 소요 시간
-   - 예: "✈️ 비행기 '김포공항 → 제주공항' (편도 약 60,000원, 소요시간 1시간)"
-   - 예: "🚄 KTX '서울역 → 부산역' (편도 약 59,800원, 소요시간 2시간 30분)"
-   - 예: "🚌 고속버스 '서울고속터미널 → 강릉' (편도 약 18,000원, 소요시간 3시간)"
-   - 예: "🚗 렌터카 (1일 약 50,000원)"
+   - 실제 출발 시간과 도착 시간을 명시 (예: 09:00 출발 → 10:00 도착)
+   - 실제 운행 시간표를 기반으로 한 시간 설정 (항공편, 열차, 버스의 실제 시간표 반영)
+   - **시간표가 아직 공개되지 않은 미래 날짜의 경우**: 기존 운행 패턴을 기반으로 예상 시간을 제시하고 "(현재 시간표 기준, 변동 가능)" 표기
+   - 실제 요금 (편도 또는 왕복, 원 또는 현지 통화)
+   - 실제 소요 시간
+   - 운행 회사명 또는 노선명 (가능한 경우)
+   - 예: "비행기 '김포공항 → 제주공항' (대한항공 KE1234편, 09:00 출발 → 10:05 도착, 편도 65,000원)"
+   - 예: "KTX '서울역 → 부산역' (KTX 101편, 06:00 출발 → 08:38 도착, 편도 59,800원)"
+   - 예: "고속버스 '서울고속터미널 → 강릉' (08:30 출발 → 11:10 도착, 편도 17,800원, 현재 시간표 기준)"
+   - 예: "렌터카 (롯데렌터카, 1일 60,000원, 공항 인근 영업소에서 09:00 픽업 가능)"
+   - 예: "지하철 '강남역 → 인천공항' (AREX 직통 08:00 출발 → 08:51 도착, 9,500원)"
+   - 귀가 시에도 동일하게 실제 출발/도착 시간을 명시하세요.
+   - 첫날 일정은 교통편 도착 시간을 고려하여 시작하고, 마지막 날 일정은 귀가 교통편 출발 시간을 고려하여 마무리하세요.
 5. 추천 장소(관광지, 맛집, 카페 등)는 실제 존재하는 곳으로 구성하고 아래 정보를 포함하세요.
    - 이름 (실존)
    - 대표 메뉴 또는 활동
