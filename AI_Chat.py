@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi import Body
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 from typing import List, Dict, Optional
 from enum import Enum
 import google.generativeai as genai
@@ -11,7 +11,6 @@ import json
 from datetime import datetime, timedelta
 import uuid
 import re
-from pydantic import Field
 
 BASE_DIR = Path(__file__).parent
 load_dotenv(dotenv_path=BASE_DIR / ".env")
@@ -43,27 +42,26 @@ class FeedbackInput(BaseModel):
     message: str
 
 class ScheduleItem(BaseModel):
-    orderIndex: int = Field(..., alias='order_index')  # order_index, index, sequence 모두 허용
+    orderIndex: int = Field(..., alias='order_index')
     time: str
     title: str = Field(..., max_length=10)  # Spring: length 10
     description: str = Field(..., max_length=20)  # Spring: length 20
     
     class Config:
-        populate_by_name = True  # orderIndex, order_index, index, sequence 모두 허용
+        populate_by_name = True  # orderIndex, order_index 모두 허용
     
+    @model_validator(mode='before')
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate_to_json
-    
-    @classmethod
-    def validate_to_json(cls, value):
-        if isinstance(value, dict):
-            # sequence나 index를 orderIndex로 변환
-            if 'sequence' in value and 'orderIndex' not in value and 'order_index' not in value:
-                value['orderIndex'] = value.pop('sequence')
-            elif 'index' in value and 'orderIndex' not in value and 'order_index' not in value:
-                value['orderIndex'] = value.pop('index')
-        return value
+    def convert_legacy_fields(cls, data):
+        """sequence나 index를 orderIndex로 변환"""
+        if isinstance(data, dict):
+            # sequence를 orderIndex로 변환
+            if 'sequence' in data and 'orderIndex' not in data and 'order_index' not in data:
+                data['orderIndex'] = data.pop('sequence')
+            # index를 orderIndex로 변환
+            elif 'index' in data and 'orderIndex' not in data and 'order_index' not in data:
+                data['orderIndex'] = data.pop('index')
+        return data
 
 class DailySchedule(BaseModel):
     day: int
@@ -368,11 +366,11 @@ def find_existing_travel(data: TravelInput) -> Optional[str]:
     for travel_id, travel in travel_summaries_store.items():
         if (travel.destination == data.destination and 
             travel.departure == data.departure and
-            travel.start_date == data.start_date and 
-            travel.end_date == data.end_date and
+            travel.startDate == data.start_date and 
+            travel.endDate == data.end_date and
             travel.companions == data.companions and
             travel.budget == data.budget and
-            set(travel.travel_styles) == set([style.value for style in data.style])):
+            set(travel.travelStyles) == set([style.value for style in data.style])):
             return travel_id
     return None
 
@@ -608,15 +606,15 @@ async def create_travel_plan(data: TravelInput = Body(...)):
                 title=updated_summary.title,
                 destination=updated_summary.destination,
                 departure=updated_summary.departure,
-                startDate=updated_summary.start_date,
-                endDate=updated_summary.end_date,
+                startDate=updated_summary.startDate,
+                endDate=updated_summary.endDate,
                 companions=updated_summary.companions,
                 budget=updated_summary.budget,
-                travelStyles=updated_summary.travel_styles,
+                travelStyles=updated_summary.travelStyles,
                 highlights=updated_summary.highlights,
-                dailySchedules=updated_summary.daily_schedules,
-                outboundTransportation=updated_summary.outbound_transportation,
-                returnTransportation=updated_summary.return_transportation,
+                dailySchedules=updated_summary.dailySchedules,
+                outboundTransportation=updated_summary.outboundTransportation,
+                returnTransportation=updated_summary.returnTransportation,
                 accommodations=updated_summary.accommodations
             )
         }
@@ -637,15 +635,15 @@ async def create_travel_plan(data: TravelInput = Body(...)):
                 title=travel_summary.title,
                 destination=travel_summary.destination,
                 departure=travel_summary.departure,
-                startDate=travel_summary.start_date,
-                endDate=travel_summary.end_date,
+                startDate=travel_summary.startDate,
+                endDate=travel_summary.endDate,
                 companions=travel_summary.companions,
                 budget=travel_summary.budget,
-                travelStyles=travel_summary.travel_styles,
+                travelStyles=travel_summary.travelStyles,
                 highlights=travel_summary.highlights,
-                dailySchedules=travel_summary.daily_schedules,
-                outboundTransportation=travel_summary.outbound_transportation,
-                returnTransportation=travel_summary.return_transportation,
+                dailySchedules=travel_summary.dailySchedules,
+                outboundTransportation=travel_summary.outboundTransportation,
+                returnTransportation=travel_summary.returnTransportation,
                 accommodations=travel_summary.accommodations
             )
         }
@@ -731,15 +729,15 @@ async def get_travel_summary(travel_id: str):
         title=summary.title,
         destination=summary.destination,
         departure=summary.departure,
-        startDate=summary.start_date,
-        endDate=summary.end_date,
+        startDate=summary.startDate,
+        endDate=summary.endDate,
         companions=summary.companions,
         budget=summary.budget,
-        travelStyles=summary.travel_styles,
+        travelStyles=summary.travelStyles,
         highlights=summary.highlights,
-        dailySchedules=summary.daily_schedules,
-        outboundTransportation=summary.outbound_transportation,
-        returnTransportation=summary.return_transportation,
+        dailySchedules=summary.dailySchedules,
+        outboundTransportation=summary.outboundTransportation,
+        returnTransportation=summary.returnTransportation,
         accommodations=summary.accommodations
     )
 
@@ -752,15 +750,15 @@ async def get_all_travel_summaries():
             title=summary.title,
             destination=summary.destination,
             departure=summary.departure,
-            startDate=summary.start_date,
-            endDate=summary.end_date,
+            startDate=summary.startDate,
+            endDate=summary.endDate,
             companions=summary.companions,
             budget=summary.budget,
-            travelStyles=summary.travel_styles,
+            travelStyles=summary.travelStyles,
             highlights=summary.highlights,
-            dailySchedules=summary.daily_schedules,
-            outboundTransportation=summary.outbound_transportation,
-            returnTransportation=summary.return_transportation,
+            dailySchedules=summary.dailySchedules,
+            outboundTransportation=summary.outboundTransportation,
+            returnTransportation=summary.returnTransportation,
             accommodations=summary.accommodations
         ))
     
