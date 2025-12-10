@@ -43,13 +43,27 @@ class FeedbackInput(BaseModel):
     message: str
 
 class ScheduleItem(BaseModel):
-    orderIndex: int = Field(..., alias='index')  # 하위 호환성을 위해 index도 허용
+    orderIndex: int = Field(..., alias='order_index')  # order_index, index, sequence 모두 허용
     time: str
     title: str = Field(..., max_length=10)  # Spring: length 10
     description: str = Field(..., max_length=20)  # Spring: length 20
     
     class Config:
-        populate_by_name = True  # orderIndex와 index 모두 허용
+        populate_by_name = True  # orderIndex, order_index, index, sequence 모두 허용
+    
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate_to_json
+    
+    @classmethod
+    def validate_to_json(cls, value):
+        if isinstance(value, dict):
+            # sequence나 index를 orderIndex로 변환
+            if 'sequence' in value and 'orderIndex' not in value and 'order_index' not in value:
+                value['orderIndex'] = value.pop('sequence')
+            elif 'index' in value and 'orderIndex' not in value and 'order_index' not in value:
+                value['orderIndex'] = value.pop('index')
+        return value
 
 class DailySchedule(BaseModel):
     day: int
@@ -122,9 +136,10 @@ def load_travel_summaries() -> None:
             with open(TRAVEL_SUMMARIES_FILE, 'r', encoding='utf-8') as f:
                 file_data = json.load(f)
                 data_list = file_data.get('data', [])
-                travel_summaries_store = {
-                    item['id']: TripPlan(**item) for item in data_list
-                }
+                travel_summaries_store = {}
+                for item in data_list:
+                    travel_id = item.pop('id', str(uuid.uuid4()))  # id를 분리하여 키로 사용
+                    travel_summaries_store[travel_id] = TripPlan(**item)
         except Exception as e:
             print(f"여행 요약 데이터 로드 실패: {e}")
             travel_summaries_store = {}
@@ -133,7 +148,11 @@ def load_travel_summaries() -> None:
 def save_travel_summaries() -> None:
     """여행 요약 정보를 파일에 저장"""
     try:
-        data_list = [v.dict() for v in travel_summaries_store.values()]
+        data_list = []
+        for travel_id, travel_plan in travel_summaries_store.items():
+            plan_dict = travel_plan.dict()
+            plan_dict['id'] = travel_id  # 내부 관리용 id 추가
+            data_list.append(plan_dict)
         file_data = {"data": data_list}
         with open(TRAVEL_SUMMARIES_FILE, 'w', encoding='utf-8') as f:
             json.dump(file_data, f, ensure_ascii=False, indent=2)
@@ -275,7 +294,6 @@ def extract_accommodations_from_plan(plan: str) -> List[TripAccommodation]:
 
 def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TripPlan:
     """생성된 여행 계획에서 요약 정보 추출"""
-    travel_id = str(uuid.uuid4())
     
     lines = plan.split('\n')
     title = f"{original_input.destination} 여행"
@@ -328,7 +346,6 @@ def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TripPla
     accommodations = extract_accommodations_from_plan(plan)
     
     return TripPlan(
-        id=travel_id,
         title=title[:20],  # 20자 제한
         destination=original_input.destination[:10],  # 10자 제한
         departure=original_input.departure[:10],  # 10자 제한
@@ -576,7 +593,6 @@ async def create_travel_plan(data: TravelInput = Body(...)):
         existing_travel = travel_summaries_store[existing_travel_id]
         
         updated_summary = extract_summary_from_plan(latest_plan, data)
-        updated_summary.id = existing_travel_id
         
         travel_summaries_store[existing_travel_id] = updated_summary
         save_travel_summaries()
@@ -606,7 +622,8 @@ async def create_travel_plan(data: TravelInput = Body(...)):
         }
     else:
         travel_summary = extract_summary_from_plan(latest_plan, data)
-        travel_summaries_store[travel_summary.id] = travel_summary
+        travel_id = str(uuid.uuid4())
+        travel_summaries_store[travel_id] = travel_summary
         save_travel_summaries()
         
         # 사용자에게는 JSON 블록 없이 깨끗한 텍스트만 전달
@@ -614,7 +631,7 @@ async def create_travel_plan(data: TravelInput = Body(...)):
         
         return {
             "plan": clean_plan,
-            "travel_id": travel_summary.id,
+            "travel_id": travel_id,
             "message": "새로운 여행 계획이 생성되었습니다.",
             "summary": TripPlanResponse(
                 title=travel_summary.title,
