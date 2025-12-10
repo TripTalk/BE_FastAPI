@@ -43,14 +43,13 @@ class FeedbackInput(BaseModel):
     message: str
 
 class ScheduleItem(BaseModel):
-    index: int = Field(..., alias='sequence')  # sequence 필드도 허용 (하위 호환성)
+    orderIndex: int = Field(..., alias='index')  # 하위 호환성을 위해 index도 허용
     time: str
-    title: str
-    description: str
+    title: str = Field(..., max_length=10)  # Spring: length 10
+    description: str = Field(..., max_length=20)  # Spring: length 20
     
     class Config:
-        populate_by_name = True  # index와 sequence 모두 허용
-        by_alias = False  # 직렬화 시 index 사용
+        populate_by_name = True  # orderIndex와 index 모두 허용
 
 class DailySchedule(BaseModel):
     day: int
@@ -58,53 +57,53 @@ class DailySchedule(BaseModel):
     schedules: List[ScheduleItem]
 
 class TripTransportation(BaseModel):
-    """교통편 정보"""
-    type: str  # 이동수단 종류 (비행기, 기차, 버스, 지하철 등)
-    route: str  # 출발지 → 목적지
-    price: str  # 가격
-    company: Optional[str] = None  # 운행 회사명
-    departure_time: Optional[str] = None  # 출발 시간
-    arrival_time: Optional[str] = None  # 도착 시간
+    """교통편 정보 - Spring Boot 엔티티 구조"""
+    origin: str = Field(..., max_length=10)  # 출발지
+    destination: str = Field(..., max_length=10)  # 도착지
+    name: str = Field(..., max_length=10)  # 교통수단 이름 (예: 진에어 LJ313)
+    price: int  # 가격 (숫자)
 
 class TripAccommodation(BaseModel):
-    """숙소 정보"""
-    name: str  # 숙소명
-    price_per_night: str  # 1박 가격
-    check_in_date: str  # 체크인 날짜
-    check_out_date: str  # 체크아웃 날짜
-    nights: int  # 숙박 일수
+    """숙소 정보 - Spring Boot 엔티티 구조"""
+    name: str = Field(..., max_length=20)  # 숙소명
+    address: str = Field(..., max_length=20)  # 주소
+    pricePerNight: int  # 1박 가격 (숫자)
 
 class TripPlan(BaseModel):
-    id: str
-    title: str
-    destination: str
-    departure: str
-    start_date: str
-    end_date: str
-    companions: str
-    budget: str
-    travel_styles: List[TravelStyle]
-    highlights: List[str]
-    full_plan: str
-    daily_schedules: List[DailySchedule] = []
-    outbound_transportation: Optional[TripTransportation] = None  # 가는 편 교통편
-    return_transportation: Optional[TripTransportation] = None  # 돌아오는 편 교통편
+    title: str = Field(..., max_length=20)  # Spring: length 20
+    destination: str = Field(..., max_length=10)  # Spring: length 10
+    departure: str = Field(..., max_length=10)  # Spring: length 10
+    startDate: str = Field(..., alias='start_date')  # ISO 8601 형식
+    endDate: str = Field(..., alias='end_date')  # ISO 8601 형식
+    companions: str = Field(..., max_length=30)  # Spring: length 30
+    budget: str = Field(..., max_length=10)  # Spring: length 10
+    travelStyles: List[TravelStyle] = Field(..., alias='travel_styles')  # camelCase
+    highlights: List[str] = []  # 각 항목 15자 이하
+    fullPlan: str = Field(..., alias='full_plan')  # 전체 계획 텍스트
+    dailySchedules: List[DailySchedule] = Field(default=[], alias='daily_schedules')
+    outboundTransportation: Optional[TripTransportation] = Field(default=None, alias='outbound_transportation')
+    returnTransportation: Optional[TripTransportation] = Field(default=None, alias='return_transportation')
     accommodations: List[TripAccommodation] = []  # 숙소 정보
+    
+    class Config:
+        populate_by_name = True  # snake_case와 camelCase 모두 허용
 class TripPlanResponse(BaseModel):
-    id: str
-    title: str
-    destination: str
-    departure: str
-    start_date: str
-    end_date: str
-    companions: str
-    budget: str
-    travel_styles: List[TravelStyle]
-    highlights: List[str]
-    daily_schedules: List[DailySchedule] = []  # 일자별 일정
-    outbound_transportation: Optional[TripTransportation] = None  # 가는 편 교통편
-    return_transportation: Optional[TripTransportation] = None  # 돌아오는 편 교통편
-    accommodations: List[TripAccommodation] = []  # 숙소 정보
+    title: str = Field(..., max_length=20)
+    destination: str = Field(..., max_length=10)
+    departure: str = Field(..., max_length=10)
+    startDate: str
+    endDate: str
+    companions: str = Field(..., max_length=30)
+    budget: str = Field(..., max_length=10)
+    travelStyles: List[TravelStyle]
+    highlights: List[str]  # 각 항목 15자 이하
+    dailySchedules: List[DailySchedule] = []
+    outboundTransportation: Optional[TripTransportation] = None
+    returnTransportation: Optional[TripTransportation] = None
+    accommodations: List[TripAccommodation] = []
+    
+    class Config:
+        by_alias = True  # JSON 출력 시 camelCase 사용
 
 OUTPUT_DIR = BASE_DIR / "outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -186,15 +185,15 @@ def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[D
                     schedules = []
                     for idx, item in enumerate(timeline_data.get('schedules', []), start=1):
                         schedules.append(ScheduleItem(
-                            index=idx,
+                            orderIndex=idx,
                             time=item['time'],
-                            title=item['title'],
-                            description=item['description']
+                            title=item['title'][:10],  # 10자 제한
+                            description=item['description'][:20]  # 20자 제한
                         ))
                     
                     daily_schedules.append(DailySchedule(
                         day=day_num,
-                        date=day_date,
+                        date=day_date.replace(".", "-"),  # YYYY-MM-DD 형식
                         schedules=schedules
                     ))
                 
@@ -207,15 +206,15 @@ def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[D
                             schedules = []
                             for idx, item in enumerate(day_data.get('schedules', []), start=1):
                                 schedules.append(ScheduleItem(
-                                    index=idx,
+                                    orderIndex=idx,
                                     time=item['time'],
-                                    title=item['title'],
-                                    description=item['description']
+                                    title=item['title'][:10],  # 10자 제한
+                                    description=item['description'][:20]  # 20자 제한
                                 ))
                             
                             daily_schedules.append(DailySchedule(
                                 day=day_num,
-                                date=day_date,
+                                date=day_date.replace(".", "-"),  # YYYY-MM-DD 형식
                                 schedules=schedules
                             ))
         except json.JSONDecodeError as e:
@@ -330,15 +329,15 @@ def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TripPla
     
     return TripPlan(
         id=travel_id,
-        title=title,
-        destination=original_input.destination,
-        departure=original_input.departure,
+        title=title[:20],  # 20자 제한
+        destination=original_input.destination[:10],  # 10자 제한
+        departure=original_input.departure[:10],  # 10자 제한
         start_date=original_input.start_date,
         end_date=original_input.end_date,
-        companions=original_input.companions,
-        budget=original_input.budget,
+        companions=original_input.companions[:30],  # 30자 제한
+        budget=original_input.budget[:10],  # 10자 제한
         travel_styles=original_input.style,
-        highlights=highlights if highlights else [f"{original_input.destination} 탐방", "맛집 투어", "문화 체험"],
+        highlights=[h[:15] for h in highlights[:5]] if highlights else [f"{original_input.destination[:15]} 탐방"[:15], "맛집 투어"[:15], "문화 체험"[:15]],  # 각 15자 제한
         full_plan=plan,
         daily_schedules=daily_schedules,
         outbound_transportation=outbound_transportation,
@@ -463,6 +462,7 @@ async def create_travel_plan(data: TravelInput = Body(...)):
    - **게스트하우스/호스텔**: 해당 지역의 유명 게스트하우스 (예: 서울-"북촌게스트하우스", 제주-"제주하우스")
    - 반드시 "OO 인근 펜션", "OO 지역 호텔" 같은 일반 명칭 대신 구체적인 업체명 사용
    - 예: "제주 신라호텔 (1박 약 250,000원)", "부산 파라다이스호텔 (1박 약 180,000원)", "강릉 세인트존스호텔 (1박 약 150,000원)"
+   - **숙소 이동 최소화**: 2박 이상일 경우 가능한 같은 숙소에 연박하여 짐 이동 부담을 줄이세요. 5박 6일 이상일 때만 중간에 숙소 1회 변경 권장.
 7. 전체 일정은 주어진 예산 내에서 현실적으로 구성하세요. 교통비, 숙박비, 식비, 액티비티 비용을 모두 고려하세요.
 8. 예산이 명확히 부족하거나 과도할 때만 간단히 피드백을 추가하세요.
 9. [필수] 각 일자 섹션 마지막에 타임라인 JSON을 반드시 생성하세요:
@@ -475,7 +475,8 @@ async def create_travel_plan(data: TravelInput = Body(...)):
      * 카페: "카페"로 통일
      * 관광/활동: 활동 성격 표현 (예: "등산과 전망", "바다 구경", "자연 탐방", "해변 드라이브")
      * 이동: 이동 수단 표현 (예: "비행기 탑승", "차량 대여", "택시 이동")
-     * 숙소: "호텔 체크인", "호텔 체크아웃" 등
+     * 숙소 체크인: 반드시 실제 숙소명 명시 (예: "제주 신라호텔", "파라다이스호텔")
+     * 숙소 체크아웃: 반드시 실제 숙소명 명시 (예: "제주 신라호텔", "파라다이스호텔")
      * 휴식: "자유시간", "호텔 휴식" 등
    - 모든 활동을 시간순으로 포함 (공항, 렌터카, 카페, 식사, 관광, 체크인 등)
    - 숙소 체크인/체크아웃 시간 규칙:
@@ -489,41 +490,36 @@ async def create_travel_plan(data: TravelInput = Body(...)):
    - 형식: ```transportation 코드 블록 사용
    - 구조: [
        {{
-         "type": "이동수단 종류 (비행기/기차/버스/지하철/렌터카 등)",
-         "route": "출발지 → 목적지",
-         "price": "가격 (원 단위 또는 현지 통화)",
-         "company": "운행 회사명 (선택)",
-         "departure_time": "출발 시간 (HH:MM 형식)",
-         "arrival_time": "도착 시간 (HH:MM 형식)"
+         "origin": "출발지 (10자 이하)",
+         "destination": "목적지 (10자 이하)",
+         "name": "교통수단명 (10자 이하, 예: 대한항공KE1234, KTX산천)",
+         "price": 가격_숫자만_정수형
        }},
        {{
-         "type": "이동수단 종류 (비행기/기차/버스/지하철/렌터카 등)",
-         "route": "목적지 → 출발지 (돌아오는 편)",
-         "price": "가격 (원 단위 또는 현지 통화)",
-         "company": "운행 회사명 (선택)",
-         "departure_time": "출발 시간 (HH:MM 형식)",
-         "arrival_time": "도착 시간 (HH:MM 형식)"
+         "origin": "목적지 (돌아오는 편 출발지)",
+         "destination": "출발지 (돌아오는 편 목적지)",
+         "name": "교통수단명 (10자 이하)",
+         "price": 가격_숫자만_정수형
        }}
      ]
-   - 주의: 반드시 배열 형식 [가는 편, 돌아오는 편]으로 작성
+   - 주의: 
+     * 반드시 배열 형식 [가는 편, 돌아오는 편]으로 작성
+     * price는 숫자만 입력 (단위 제거, 정수형)
+     * origin/destination/name은 각각 10자 이하
    - 예시:
      ```transportation
      [
        {{
-         "type": "비행기",
-         "route": "김포공항 → 제주공항",
-         "price": "65,000원",
-         "company": "대한항공 KE1234",
-         "departure_time": "09:00",
-         "arrival_time": "10:05"
+         "origin": "김포공항",
+         "destination": "제주공항",
+         "name": "대한항공KE1234",
+         "price": 65000
        }},
        {{
-         "type": "비행기",
-         "route": "제주공항 → 김포공항",
-         "price": "68,000원",
-         "company": "아시아나 OZ8954",
-         "departure_time": "18:30",
-         "arrival_time": "19:40"
+         "origin": "제주공항",
+         "destination": "김포공항",
+         "name": "아시아나OZ8954",
+         "price": 68000
        }}
      ]
      ```
@@ -532,30 +528,25 @@ async def create_travel_plan(data: TravelInput = Body(...)):
    - 형식: ```accommodations 코드 블록 사용
    - 구조: [
        {{
-         "name": "실제 브랜드/업체명 (필수)",
-         "price_per_night": "1박 가격",
-         "check_in_date": "체크인 날짜 (YYYY-MM-DD)",
-         "check_out_date": "체크아웃 날짜 (YYYY-MM-DD)",
-         "nights": 숙박일수
+         "name": "실제 브랜드/업체명 (20자 이하, 필수)",
+         "address": "숙소 주소 (20자 이하)",
+         "pricePerNight": 1박_가격_숫자만_정수형
        }}
      ]
-   - 주의: "OO 인근 펜션", "OO 지역 호텔" 같은 일반 명칭 금지, 반드시 구체적인 브랜드명 사용
+   - 주의: 
+     * "OO 인근 펜션", "OO 지역 호텔" 같은 일반 명칭 금지
+     * 반드시 구체적인 브랜드명 사용
+     * 여행 기간 동안 숙소 변경 최소화 (가능하면 같은 숙소)
+     * pricePerNight는 숫자만 입력 (단위 제거, 정수형)
+     * name과 address는 각각 20자 이하
+     * 체크인/체크아웃 일정 설명에 숙소명 표시 (예: "제주신라호텔 체크인")
    - 예시:
      ```accommodations
      [
        {{
-         "name": "제주 신라호텔",
-         "price_per_night": "250,000원",
-         "check_in_date": "2025-03-01",
-         "check_out_date": "2025-03-02",
-         "nights": 1
-       }},
-       {{
-         "name": "제주 메이필드호텔",
-         "price_per_night": "180,000원",
-         "check_in_date": "2025-03-02",
-         "check_out_date": "2025-03-03",
-         "nights": 1
+         "name": "제주신라호텔",
+         "address": "제주시 중앙로 75",
+         "pricePerNight": 250000
        }}
      ]
      ```
@@ -598,19 +589,18 @@ async def create_travel_plan(data: TravelInput = Body(...)):
             "travel_id": existing_travel_id,
             "message": "기존 여행 계획이 업데이트되었습니다.",
             "summary": TripPlanResponse(
-                id=updated_summary.id,
                 title=updated_summary.title,
                 destination=updated_summary.destination,
                 departure=updated_summary.departure,
-                start_date=updated_summary.start_date,
-                end_date=updated_summary.end_date,
+                startDate=updated_summary.start_date,
+                endDate=updated_summary.end_date,
                 companions=updated_summary.companions,
                 budget=updated_summary.budget,
-                travel_styles=updated_summary.travel_styles,
+                travelStyles=updated_summary.travel_styles,
                 highlights=updated_summary.highlights,
-                daily_schedules=updated_summary.daily_schedules,
-                outbound_transportation=updated_summary.outbound_transportation,
-                return_transportation=updated_summary.return_transportation,
+                dailySchedules=updated_summary.daily_schedules,
+                outboundTransportation=updated_summary.outbound_transportation,
+                returnTransportation=updated_summary.return_transportation,
                 accommodations=updated_summary.accommodations
             )
         }
@@ -627,19 +617,18 @@ async def create_travel_plan(data: TravelInput = Body(...)):
             "travel_id": travel_summary.id,
             "message": "새로운 여행 계획이 생성되었습니다.",
             "summary": TripPlanResponse(
-                id=travel_summary.id,
                 title=travel_summary.title,
                 destination=travel_summary.destination,
                 departure=travel_summary.departure,
-                start_date=travel_summary.start_date,
-                end_date=travel_summary.end_date,
+                startDate=travel_summary.start_date,
+                endDate=travel_summary.end_date,
                 companions=travel_summary.companions,
                 budget=travel_summary.budget,
-                travel_styles=travel_summary.travel_styles,
+                travelStyles=travel_summary.travel_styles,
                 highlights=travel_summary.highlights,
-                daily_schedules=travel_summary.daily_schedules,
-                outbound_transportation=travel_summary.outbound_transportation,
-                return_transportation=travel_summary.return_transportation,
+                dailySchedules=travel_summary.daily_schedules,
+                outboundTransportation=travel_summary.outbound_transportation,
+                returnTransportation=travel_summary.return_transportation,
                 accommodations=travel_summary.accommodations
             )
         }
@@ -722,19 +711,18 @@ async def get_travel_summary(travel_id: str):
     
     summary = travel_summaries_store[travel_id]
     return TripPlanResponse(
-        id=summary.id,
         title=summary.title,
         destination=summary.destination,
         departure=summary.departure,
-        start_date=summary.start_date,
-        end_date=summary.end_date,
+        startDate=summary.start_date,
+        endDate=summary.end_date,
         companions=summary.companions,
         budget=summary.budget,
-        travel_styles=summary.travel_styles,
+        travelStyles=summary.travel_styles,
         highlights=summary.highlights,
-        daily_schedules=summary.daily_schedules,
-        outbound_transportation=summary.outbound_transportation,
-        return_transportation=summary.return_transportation,
+        dailySchedules=summary.daily_schedules,
+        outboundTransportation=summary.outbound_transportation,
+        returnTransportation=summary.return_transportation,
         accommodations=summary.accommodations
     )
 
@@ -744,19 +732,18 @@ async def get_all_travel_summaries():
     summaries = []
     for summary in travel_summaries_store.values():
         summaries.append(TripPlanResponse(
-            id=summary.id,
             title=summary.title,
             destination=summary.destination,
             departure=summary.departure,
-            start_date=summary.start_date,
-            end_date=summary.end_date,
+            startDate=summary.start_date,
+            endDate=summary.end_date,
             companions=summary.companions,
             budget=summary.budget,
-            travel_styles=summary.travel_styles,
+            travelStyles=summary.travel_styles,
             highlights=summary.highlights,
-            daily_schedules=summary.daily_schedules,
-            outbound_transportation=summary.outbound_transportation,
-            return_transportation=summary.return_transportation,
+            dailySchedules=summary.daily_schedules,
+            outboundTransportation=summary.outbound_transportation,
+            returnTransportation=summary.return_transportation,
             accommodations=summary.accommodations
         ))
     
