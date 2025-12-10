@@ -11,10 +11,14 @@ import json
 from datetime import datetime, timedelta
 import uuid
 import re
+import httpx  # HTTP 클라이언트 라이브러리
 
 BASE_DIR = Path(__file__).parent
 load_dotenv(dotenv_path=BASE_DIR / ".env")
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+# Spring Boot 서버 URL (환경변수로 설정)
+SPRING_BOOT_URL = os.getenv("SPRING_BOOT_URL", "http://spring-server:8080")
 
 app = FastAPI()
 
@@ -783,3 +787,71 @@ async def delete_travel(travel_id: str):
     save_travel_summaries()
     
     return {"message": f"여행 ID '{travel_id}'가 성공적으로 삭제되었습니다."}
+
+@app.post("/save-plan/{travel_id}")
+async def save_plan(travel_id: str):
+    """여행 계획을 Spring Boot 서버로 전송하여 DB에 저장합니다."""
+    if travel_id not in travel_summaries_store:
+        return {"error": f"여행 ID '{travel_id}'를 찾을 수 없습니다.", "success": False}
+    
+    travel_plan = travel_summaries_store[travel_id]
+    
+    # TripPlanResponse로 변환 (camelCase로 자동 변환됨)
+    plan_response = TripPlanResponse(
+        title=travel_plan.title,
+        destination=travel_plan.destination,
+        departure=travel_plan.departure,
+        startDate=travel_plan.startDate,
+        endDate=travel_plan.endDate,
+        companions=travel_plan.companions,
+        budget=travel_plan.budget,
+        travelStyles=travel_plan.travelStyles,
+        highlights=travel_plan.highlights,
+        dailySchedules=travel_plan.dailySchedules,
+        outboundTransportation=travel_plan.outboundTransportation,
+        returnTransportation=travel_plan.returnTransportation,
+        accommodations=travel_plan.accommodations
+    )
+    
+    # JSON으로 변환 (camelCase 형식)
+    plan_data = plan_response.model_dump(by_alias=True)
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Spring Boot API 엔드포인트로 POST 요청
+            response = await client.post(
+                f"{SPRING_BOOT_URL}/api/trip-plans",
+                json=plan_data,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            if response.status_code == 200 or response.status_code == 201:
+                spring_response = response.json()
+                return {
+                    "success": True,
+                    "message": "여행 계획이 Spring Boot 서버에 성공적으로 저장되었습니다.",
+                    "spring_data": spring_response,
+                    "fastapi_travel_id": travel_id
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Spring Boot 서버 응답 오류: {response.status_code}",
+                    "detail": response.text
+                }
+    except httpx.TimeoutException:
+        return {
+            "success": False,
+            "error": "Spring Boot 서버 연결 시간 초과"
+        }
+    except httpx.RequestError as e:
+        return {
+            "success": False,
+            "error": f"Spring Boot 서버 연결 실패: {str(e)}"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"예상치 못한 오류 발생: {str(e)}"
+        }
+

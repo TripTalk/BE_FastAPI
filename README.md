@@ -31,13 +31,14 @@ python3 -m venv venv
 source venv/bin/activate
 
 # 패키지 설치
-pip install fastapi uvicorn python-dotenv google-generativeai pydantic
+pip install -r requirements.txt
 ```
 
 ### 2. 환경변수 설정
-`.env` 파일에 Google API Key 설정:
+`.env` 파일에 API Key와 Spring Boot URL 설정:
 ```
 GOOGLE_API_KEY=your_api_key_here
+SPRING_BOOT_URL=http://localhost:8080
 ```
 
 ### 3. 서버 실행
@@ -102,16 +103,53 @@ uvicorn AI_Chat:app --reload
 }
 ```
 
+### Spring Boot로 여행 계획 저장
+프론트에서 "저장" 버튼 클릭 시 호출:
+```bash
+POST http://localhost:8000/save-to-spring/{travel_id}
+```
+
+**응답 예시:**
+```json
+{
+  "success": true,
+  "message": "여행 계획이 Spring Boot 서버에 성공적으로 저장되었습니다.",
+  "spring_data": {
+    "id": 123,
+    "title": "제주도 여행",
+    ...
+  },
+  "fastapi_travel_id": "uuid-here"
+}
+```
+
+## 🔗 시스템 연동 흐름
+
+```
+프론트엔드
+    ↓ (여행 정보 입력)
+FastAPI (/Travel-Plan)
+    ↓ (AI로 계획 생성 + 임시 저장)
+프론트엔드 (계획 확인)
+    ↓ (저장 버튼 클릭)
+FastAPI (/save-to-spring/{travel_id})
+    ↓ (HTTP POST)
+Spring Boot (/api/trip-plans)
+    ↓ (DB 저장)
+MySQL Database
+```
+
 ## 🔮 향후 연동 계획
 
 프론트엔드 연동 시 이 API를 활용하여:
 1. **사용자 입력 폼** → API 요청 데이터 변환
 2. **여행 카드 UI** → 저장된 요약 정보로 렌더링  
 3. **AI 이미지 생성** → `image_description` 활용
+4. **저장 버튼** → Spring Boot 서버로 최종 저장
 
 ---
 
-**✨ 깔끔하고 효율적인 여행 정보 관리 시스템이 완성되었습니다!**
+**✨ FastAPI-Spring Boot 연동이 완성되었습니다!**
 
 ## 📝 커밋 메시지 규칙
 
