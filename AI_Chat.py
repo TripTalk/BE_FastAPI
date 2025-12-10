@@ -52,6 +52,23 @@ class DaySchedule(BaseModel):
     date: str
     schedules: List[TimelineItem]
 
+class Transportation(BaseModel):
+    """교통편 정보"""
+    type: str  # 이동수단 종류 (비행기, 기차, 버스, 지하철 등)
+    route: str  # 출발지 → 목적지
+    price: str  # 가격
+    company: Optional[str] = None  # 운행 회사명
+    departure_time: Optional[str] = None  # 출발 시간
+    arrival_time: Optional[str] = None  # 도착 시간
+
+class Accommodation(BaseModel):
+    """숙소 정보"""
+    name: str  # 숙소명
+    price_per_night: str  # 1박 가격
+    check_in_date: str  # 체크인 날짜
+    check_out_date: str  # 체크아웃 날짜
+    nights: int  # 숙박 일수
+
 class TravelSummary(BaseModel):
     id: str
     title: str
@@ -65,6 +82,8 @@ class TravelSummary(BaseModel):
     highlights: List[str]
     full_plan: str
     daily_schedules: List[DaySchedule] = []
+    transportation: Optional[Transportation] = None  # 교통편 정보
+    accommodations: List[Accommodation] = []  # 숙소 정보
 class TravelSummaryResponse(BaseModel):
     id: str
     title: str
@@ -76,6 +95,9 @@ class TravelSummaryResponse(BaseModel):
     budget: str
     travel_styles: List[str]
     highlights: List[str]
+    daily_schedules: List[DaySchedule] = []  # 일자별 일정
+    transportation: Optional[Transportation] = None  # 교통편 정보
+    accommodations: List[Accommodation] = []  # 숙소 정보
 
 OUTPUT_DIR = BASE_DIR / "outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -120,8 +142,13 @@ def save_plan_to_file(content: str, filename: str = "latest_plan.md") -> None:
 
 def remove_json_blocks(text: str) -> str:
     """텍스트에서 JSON 코드 블록을 제거"""
-    json_pattern = r'```json\s*\n.*?\n```'
-    return re.sub(json_pattern, '', text, flags=re.DOTALL).strip()
+    # 일자별 타임라인 JSON 제거
+    text = re.sub(r'```json\s*\n.*?\n```', '', text, flags=re.DOTALL)
+    # 교통편 JSON 제거
+    text = re.sub(r'```transportation\s*\n.*?\n```', '', text, flags=re.DOTALL)
+    # 숙소 JSON 제거
+    text = re.sub(r'```accommodations\s*\n.*?\n```', '', text, flags=re.DOTALL)
+    return text.strip()
 
 
 def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[DaySchedule]:
@@ -190,6 +217,41 @@ def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[D
     return daily_schedules
 
 
+def extract_transportation_from_plan(plan: str) -> Optional[Transportation]:
+    """AI 생성 계획에서 교통편 정보 추출"""
+    json_pattern = r'```transportation\s*\n(.*?)\n```'
+    json_matches = re.findall(json_pattern, plan, re.DOTALL)
+    
+    if json_matches:
+        try:
+            transport_data = json.loads(json_matches[0])
+            return Transportation(**transport_data)
+        except json.JSONDecodeError as e:
+            print(f"교통편 JSON 파싱 오류: {e}")
+    
+    return None
+
+
+def extract_accommodations_from_plan(plan: str) -> List[Accommodation]:
+    """AI 생성 계획에서 숙소 정보 추출"""
+    accommodations = []
+    json_pattern = r'```accommodations\s*\n(.*?)\n```'
+    json_matches = re.findall(json_pattern, plan, re.DOTALL)
+    
+    if json_matches:
+        try:
+            accommodations_data = json.loads(json_matches[0])
+            if isinstance(accommodations_data, list):
+                for acc_data in accommodations_data:
+                    accommodations.append(Accommodation(**acc_data))
+            elif isinstance(accommodations_data, dict):
+                accommodations.append(Accommodation(**accommodations_data))
+        except json.JSONDecodeError as e:
+            print(f"숙소 JSON 파싱 오류: {e}")
+    
+    return accommodations
+
+
 def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TravelSummary:
     """생성된 여행 계획에서 요약 정보 추출"""
     travel_id = str(uuid.uuid4())
@@ -238,6 +300,12 @@ def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TravelS
     # 타임라인 정보 추출
     daily_schedules = extract_timeline_from_plan(plan, original_input)
     
+    # 교통편 정보 추출
+    transportation = extract_transportation_from_plan(plan)
+    
+    # 숙소 정보 추출
+    accommodations = extract_accommodations_from_plan(plan)
+    
     return TravelSummary(
         id=travel_id,
         title=title,
@@ -250,7 +318,9 @@ def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TravelS
         travel_styles=[style.value for style in original_input.style],
         highlights=highlights if highlights else [f"{original_input.destination} 탐방", "맛집 투어", "문화 체험"],
         full_plan=plan,
-        daily_schedules=daily_schedules
+        daily_schedules=daily_schedules,
+        transportation=transportation,
+        accommodations=accommodations
     )
 
 
@@ -388,6 +458,59 @@ async def create_travel_plan(data: TravelInput = Body(...)):
      * 체크인 전에 도착하면 짐 보관만 하고, 체크인 시간 이후에 정식 체크인
      * 마지막 날은 체크아웃 후 관광 또는 귀가
 
+10. [필수] 교통편 정보를 JSON으로 생성하세요 (여행 계획 끝에 한 번만):
+   - 형식: ```transportation 코드 블록 사용
+   - 구조: {{
+       "type": "이동수단 종류 (비행기/기차/버스/지하철/렌터카 등)",
+       "route": "출발지 → 목적지",
+       "price": "가격 (원 단위 또는 현지 통화)",
+       "company": "운행 회사명 (선택)",
+       "departure_time": "출발 시간 (HH:MM 형식)",
+       "arrival_time": "도착 시간 (HH:MM 형식)"
+     }}
+   - 예시:
+     ```transportation
+     {{
+       "type": "비행기",
+       "route": "김포공항 → 제주공항",
+       "price": "65,000원",
+       "company": "대한항공 KE1234",
+       "departure_time": "09:00",
+       "arrival_time": "10:05"
+     }}
+     ```
+
+11. [필수] 숙소 정보를 JSON으로 생성하세요 (여행 계획 끝에 한 번만):
+   - 형식: ```accommodations 코드 블록 사용
+   - 구조: [
+       {{
+         "name": "숙소명",
+         "price_per_night": "1박 가격",
+         "check_in_date": "체크인 날짜 (YYYY-MM-DD)",
+         "check_out_date": "체크아웃 날짜 (YYYY-MM-DD)",
+         "nights": 숙박일수
+       }}
+     ]
+   - 예시:
+     ```accommodations
+     [
+       {{
+         "name": "신라스테이 제주",
+         "price_per_night": "120,000원",
+         "check_in_date": "2025-03-01",
+         "check_out_date": "2025-03-02",
+         "nights": 1
+       }},
+       {{
+         "name": "제주 힐링 펜션",
+         "price_per_night": "85,000원",
+         "check_in_date": "2025-03-02",
+         "check_out_date": "2025-03-03",
+         "nights": 1
+       }}
+     ]
+     ```
+
 ---
 
 [출력 예시]
@@ -435,7 +558,10 @@ async def create_travel_plan(data: TravelInput = Body(...)):
                 companions=updated_summary.companions,
                 budget=updated_summary.budget,
                 travel_styles=updated_summary.travel_styles,
-                highlights=updated_summary.highlights
+                highlights=updated_summary.highlights,
+                daily_schedules=updated_summary.daily_schedules,
+                transportation=updated_summary.transportation,
+                accommodations=updated_summary.accommodations
             )
         }
     else:
@@ -460,7 +586,10 @@ async def create_travel_plan(data: TravelInput = Body(...)):
                 companions=travel_summary.companions,
                 budget=travel_summary.budget,
                 travel_styles=travel_summary.travel_styles,
-                highlights=travel_summary.highlights
+                highlights=travel_summary.highlights,
+                daily_schedules=travel_summary.daily_schedules,
+                transportation=travel_summary.transportation,
+                accommodations=travel_summary.accommodations
             )
         }
 
@@ -551,7 +680,10 @@ async def get_travel_summary(travel_id: str):
         companions=summary.companions,
         budget=summary.budget,
         travel_styles=summary.travel_styles,
-        highlights=summary.highlights
+        highlights=summary.highlights,
+        daily_schedules=summary.daily_schedules,
+        transportation=summary.transportation,
+        accommodations=summary.accommodations
     )
 
 @app.get("/travel-summaries")
@@ -569,7 +701,10 @@ async def get_all_travel_summaries():
             companions=summary.companions,
             budget=summary.budget,
             travel_styles=summary.travel_styles,
-            highlights=summary.highlights
+            highlights=summary.highlights,
+            daily_schedules=summary.daily_schedules,
+            transportation=summary.transportation,
+            accommodations=summary.accommodations
         ))
     
     return {"summaries": summaries, "total": len(summaries)}
