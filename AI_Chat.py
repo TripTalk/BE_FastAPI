@@ -78,7 +78,7 @@ class TravelSummary(BaseModel):
     end_date: str
     companions: str
     budget: str
-    travel_styles: List[str]
+    travel_styles: List[TravelStyle]
     highlights: List[str]
     full_plan: str
     daily_schedules: List[DaySchedule] = []
@@ -93,7 +93,7 @@ class TravelSummaryResponse(BaseModel):
     end_date: str
     companions: str
     budget: str
-    travel_styles: List[str]
+    travel_styles: List[TravelStyle]
     highlights: List[str]
     daily_schedules: List[DaySchedule] = []  # 일자별 일정
     transportation: Optional[Transportation] = None  # 교통편 정보
@@ -315,7 +315,7 @@ def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TravelS
         end_date=original_input.end_date,
         companions=original_input.companions,
         budget=original_input.budget,
-        travel_styles=[style.value for style in original_input.style],
+        travel_styles=original_input.style,
         highlights=highlights if highlights else [f"{original_input.destination} 탐방", "맛집 투어", "문화 체험"],
         full_plan=plan,
         daily_schedules=daily_schedules,
