@@ -48,8 +48,8 @@ class FeedbackInput(BaseModel):
 class ScheduleItem(BaseModel):
     orderIndex: int = Field(..., alias='order_index')
     time: str
-    title: str = Field(..., max_length=10)  # Spring: length 10
-    description: str = Field(..., max_length=20)  # Spring: length 20
+    title: str = Field(..., max_length=50)  # Spring: length 50
+    description: str = Field(..., max_length=100)  # Spring: length 100
     
     class Config:
         populate_by_name = True  # orderIndex, order_index 모두 허용
@@ -67,6 +67,10 @@ class ScheduleItem(BaseModel):
                 data['orderIndex'] = data.pop('index')
         return data
 
+class TripHighlight(BaseModel):
+    """하이라이트 정보 - Spring Boot 엔티티 구조"""
+    content: str = Field(..., max_length=100)  # Spring: length 100
+
 class DailySchedule(BaseModel):
     day: int
     date: str
@@ -74,27 +78,27 @@ class DailySchedule(BaseModel):
 
 class TripTransportation(BaseModel):
     """교통편 정보 - Spring Boot 엔티티 구조"""
-    origin: str = Field(..., max_length=10)  # 출발지
-    destination: str = Field(..., max_length=10)  # 도착지
-    name: str = Field(..., max_length=10)  # 교통수단 이름 (예: 진에어 LJ313)
+    origin: str = Field(..., max_length=50)  # 출발지 (Spring: length 50)
+    destination: str = Field(..., max_length=50)  # 도착지 (Spring: length 50)
+    name: str = Field(..., max_length=50)  # 교통수단 이름 (Spring: length 50)
     price: int  # 가격 (숫자)
 
 class TripAccommodation(BaseModel):
     """숙소 정보 - Spring Boot 엔티티 구조"""
-    name: str = Field(..., max_length=20)  # 숙소명
-    address: str = Field(..., max_length=20)  # 주소
+    name: str = Field(..., max_length=100)  # 숙소명 (Spring: length 100)
+    address: str = Field(..., max_length=100)  # 주소 (Spring: length 100)
     pricePerNight: int  # 1박 가격 (숫자)
 
 class TripPlan(BaseModel):
-    title: str = Field(..., max_length=20)  # Spring: length 20
-    destination: str = Field(..., max_length=10)  # Spring: length 10
-    departure: str = Field(..., max_length=10)  # Spring: length 10
+    title: str = Field(..., max_length=100)  # Spring: length 100
+    destination: str = Field(..., max_length=50)  # Spring: length 50
+    departure: str = Field(..., max_length=50)  # Spring: length 50
     startDate: str = Field(..., alias='start_date')  # ISO 8601 형식
     endDate: str = Field(..., alias='end_date')  # ISO 8601 형식
-    companions: str = Field(..., max_length=30)  # Spring: length 30
-    budget: str = Field(..., max_length=10)  # Spring: length 10
+    companions: str = Field(..., max_length=50)  # Spring: length 50
+    budget: str = Field(..., max_length=30)  # Spring: length 30
     travelStyles: List[TravelStyle] = Field(..., alias='travel_styles')  # camelCase
-    highlights: List[str] = []  # 각 항목 15자 이하
+    highlights: List[TripHighlight] = []  # 각 항목 100자 이하
     fullPlan: str = Field(..., alias='full_plan')  # 전체 계획 텍스트
     dailySchedules: List[DailySchedule] = Field(default=[], alias='daily_schedules')
     outboundTransportation: Optional[TripTransportation] = Field(default=None, alias='outbound_transportation')
@@ -104,15 +108,15 @@ class TripPlan(BaseModel):
     class Config:
         populate_by_name = True  # snake_case와 camelCase 모두 허용
 class TripPlanResponse(BaseModel):
-    title: str = Field(..., max_length=20)
-    destination: str = Field(..., max_length=10)
-    departure: str = Field(..., max_length=10)
+    title: str = Field(..., max_length=100)
+    destination: str = Field(..., max_length=50)
+    departure: str = Field(..., max_length=50)
     startDate: str
     endDate: str
-    companions: str = Field(..., max_length=30)
-    budget: str = Field(..., max_length=10)
+    companions: str = Field(..., max_length=50)
+    budget: str = Field(..., max_length=30)
     travelStyles: List[TravelStyle]
-    highlights: List[str]  # 각 항목 15자 이하
+    highlights: List[TripHighlight] = []  # 각 항목 100자 이하
     dailySchedules: List[DailySchedule] = []
     outboundTransportation: Optional[TripTransportation] = None
     returnTransportation: Optional[TripTransportation] = None
@@ -208,8 +212,8 @@ def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[D
                         schedules.append(ScheduleItem(
                             orderIndex=idx,
                             time=item['time'],
-                            title=item['title'][:10],  # 10자 제한
-                            description=item['description'][:20]  # 20자 제한
+                            title=item['title'][:50],  # 50자 제한
+                            description=item['description'][:100]  # 100자 제한
                         ))
                     
                     daily_schedules.append(DailySchedule(
@@ -229,8 +233,8 @@ def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[D
                                 schedules.append(ScheduleItem(
                                     orderIndex=idx,
                                     time=item['time'],
-                                    title=item['title'][:10],  # 10자 제한
-                                    description=item['description'][:20]  # 20자 제한
+                                    title=item['title'][:50],  # 50자 제한
+                                    description=item['description'][:100]  # 100자 제한
                                 ))
                             
                             daily_schedules.append(DailySchedule(
@@ -348,15 +352,15 @@ def extract_summary_from_plan(plan: str, original_input: TravelInput) -> TripPla
     accommodations = extract_accommodations_from_plan(plan)
     
     return TripPlan(
-        title=title[:20],  # 20자 제한
-        destination=original_input.destination[:10],  # 10자 제한
-        departure=original_input.departure[:10],  # 10자 제한
+        title=title[:100],  # 100자 제한
+        destination=original_input.destination[:50],  # 50자 제한
+        departure=original_input.departure[:50],  # 50자 제한
         start_date=original_input.start_date,
         end_date=original_input.end_date,
-        companions=original_input.companions[:30],  # 30자 제한
-        budget=original_input.budget[:10],  # 10자 제한
+        companions=original_input.companions[:50],  # 50자 제한
+        budget=original_input.budget[:30],  # 30자 제한
         travel_styles=original_input.style,
-        highlights=[h[:15] for h in highlights[:5]] if highlights else [f"{original_input.destination[:15]} 탐방"[:15], "맛집 투어"[:15], "문화 체험"[:15]],  # 각 15자 제한
+        highlights=[TripHighlight(content=h[:100]) for h in highlights[:5]] if highlights else [TripHighlight(content=f"{original_input.destination} 탐방"[:100]), TripHighlight(content="맛집 투어"), TripHighlight(content="문화 체험")],  # 각 100자 제한
         full_plan=plan,
         daily_schedules=daily_schedules,
         outbound_transportation=outbound_transportation,
@@ -451,7 +455,7 @@ async def create_travel_plan(data: TravelInput = Body(...)):
    - 기간 (YYYY.MM.DD 형식)
    - 동행자 유형
    - 예산 범위
-   - 여행 하이라이트 (3~5개 핵심 키워드 문장형, 예: "성산일출봉 일출 감상", "한라산 트레킹", "오션뷰 카페 투어")
+   - 여행 하이라이트 (4~5개 핵심 키워드 문장형, 각 100자 이내, 이모지나 날짜 정보 포함 금지, 예: "성산일출봉 일출 감상", "한라산 트레킹", "오션뷰 카페 투어")
 3. 상세 일정은 일자별로 오전/오후/저녁 단위로 나누고 짧은 설명을 포함하세요.
 4. 이동수단은 각 일자의 상단에 명시하고, 반드시 실제 운행 시간표와 정확한 요금을 확인하여 제공하세요.
    - 실제 이용 가능한 이동수단 (비행기, 기차, 고속버스, 택시, 렌터카, 대중교통 등)
@@ -486,9 +490,9 @@ async def create_travel_plan(data: TravelInput = Body(...)):
 8. 예산이 명확히 부족하거나 과도할 때만 간단히 피드백을 추가하세요.
 9. [필수] 각 일자 섹션 마지막에 타임라인 JSON을 반드시 생성하세요:
    - 형식: ```json 코드 블록 사용
-   - 구조: {{"day": 숫자, "schedules": [{{"time": "HH:MM", "title": "활동명", "description": "간결한 설명"}}]}}
+   - 구조: {{"day": 숫자, "schedules": [{{"time": "HH:MM", "title": "활동명 (50자 이내)", "description": "상세 설명 (100자 이내)"}}]}}
    - description 작성 가이드:
-     * 2-5단어 정도의 간결한 설명
+     * 100자 이내의 상세한 설명
      * title과 잘 어울리는 자연스러운 표현 사용
      * 음식점: "점심" 또는 "저녁"으로 표기 (예: "점심", "저녁")
      * 카페: "카페"로 통일
@@ -509,22 +513,22 @@ async def create_travel_plan(data: TravelInput = Body(...)):
    - 형식: ```transportation 코드 블록 사용
    - 구조: [
        {{
-         "origin": "출발지 (10자 이하)",
-         "destination": "목적지 (10자 이하)",
-         "name": "교통수단명 (10자 이하, 예: 대한항공KE1234, KTX산천)",
+         "origin": "출발지 (50자 이하)",
+         "destination": "목적지 (50자 이하)",
+         "name": "교통수단명 (50자 이하, 예: 대한항공 KE1234편, KTX 산천 101호)",
          "price": 가격_숫자만_정수형
        }},
        {{
          "origin": "목적지 (돌아오는 편 출발지)",
          "destination": "출발지 (돌아오는 편 목적지)",
-         "name": "교통수단명 (10자 이하)",
+         "name": "교통수단명 (50자 이하)",
          "price": 가격_숫자만_정수형
        }}
      ]
    - 주의: 
      * 반드시 배열 형식 [가는 편, 돌아오는 편]으로 작성
      * price는 숫자만 입력 (단위 제거, 정수형)
-     * origin/destination/name은 각각 10자 이하
+     * origin/destination/name은 각각 50자 이하
    - 예시:
      ```transportation
      [
@@ -547,8 +551,8 @@ async def create_travel_plan(data: TravelInput = Body(...)):
    - 형식: ```accommodations 코드 블록 사용
    - 구조: [
        {{
-         "name": "실제 브랜드/업체명 (20자 이하, 필수)",
-         "address": "숙소 주소 (20자 이하)",
+         "name": "실제 브랜드/업체명 (100자 이하, 필수)",
+         "address": "숙소 주소 (100자 이하)",
          "pricePerNight": 1박_가격_숫자만_정수형
        }}
      ]
@@ -557,7 +561,7 @@ async def create_travel_plan(data: TravelInput = Body(...)):
      * 반드시 구체적인 브랜드명 사용
      * 여행 기간 동안 숙소 변경 최소화 (가능하면 같은 숙소)
      * pricePerNight는 숫자만 입력 (단위 제거, 정수형)
-     * name과 address는 각각 20자 이하
+     * name과 address는 각각 100자 이하
      * 체크인/체크아웃 일정 설명에 숙소명 표시 (예: "제주신라호텔 체크인")
    - 예시:
      ```accommodations
