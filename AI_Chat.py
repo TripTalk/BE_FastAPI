@@ -483,7 +483,7 @@ async def create_travel_plan(data: TravelInput = Body(...)):
    - **리조트/펜션**: 해당 지역에서 실제 운영 중인 리조트명 (예: 제주-"제주신화월드", "메이필드호텔", "해비치호텔", 부산-"파라다이스호텔", "아난티코브", 강릉-"세인트존스호텔")
    - **글램핑/캠핑**: 실제 운영 중인 글램핑장 이름 (예: "별빛정원글램핑", "캠프통 포레스트", "힐링파크 글램핑", "글램핑프레도")
    - **게스트하우스/호스텔**: 해당 지역의 유명 게스트하우스 (예: 서울-"북촌게스트하우스", 제주-"제주하우스")
-   - 반드시 "OO 인근 펜션", "OO 지역 호텔" 같은 일반 명칭 대신 구체적인 업체명 사용
+   - **주의**: 에어비앤비는 제외, 반드시 "OO 인근 펜션", "OO 지역 호텔" 같은 일반 명칭 대신 구체적인 업체명 사용
    - 예: "제주 신라호텔 (1박 약 250,000원)", "부산 파라다이스호텔 (1박 약 180,000원)", "강릉 세인트존스호텔 (1박 약 150,000원)"
    - **숙소 이동 최소화**: 2박 이상일 경우 가능한 같은 숙소에 연박하여 짐 이동 부담을 줄이세요. 5박 6일 이상일 때만 중간에 숙소 1회 변경 권장.
 7. 전체 일정은 주어진 예산 내에서 현실적으로 구성하세요. 교통비, 숙박비, 식비, 액티비티 비용을 모두 고려하세요.
@@ -824,7 +824,7 @@ async def save_plan(travel_id: str):
         async with httpx.AsyncClient(timeout=30.0) as client:
             # Spring Boot API 엔드포인트로 POST 요청
             response = await client.post(
-                f"{SPRING_BOOT_URL}/api/trip-plans",
+                f"{SPRING_BOOT_URL}/api/trip-plan/from-fastapi",
                 json=plan_data,
                 headers={"Content-Type": "application/json"}
             )
