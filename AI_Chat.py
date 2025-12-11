@@ -820,6 +820,9 @@ async def save_plan(travel_id: str):
     # JSON으로 변환 (camelCase 형식)
     plan_data = plan_response.model_dump(by_alias=True)
     
+    # id 필드 제거
+    plan_data.pop("id", None)
+    
     # highlights를 Spring Boot 형식으로 변환 (객체 리스트 → 문자열 리스트)
     if "highlights" in plan_data and plan_data["highlights"]:
         plan_data["highlights"] = [h["content"] for h in plan_data["highlights"]]
