@@ -877,10 +877,13 @@ async def save_plan(travel_id: str, authorization: str = Header(default=None)):
         async with httpx.AsyncClient(timeout=30.0) as client:
             headers = {"Content-Type": "application/json"}
             if authorization:
-                headers["Authorization"] = authorization
+                auth = authorization.strip()
+            if not auth.startswith("Bearer "):
+                auth = f"Bearer {auth}"
+            headers["Authorization"] = auth
             # Spring Boot API 엔드포인트로 POST 요청
             response = await client.post(
-                f"{SPRING_BOOT_URL}/api/trip-plan/from-fastapi",
+                f"{SPRING_BOOT_URL.rstrip()}/api/trip-plan/from-fastapi",
                 json=plan_data,
                 headers=headers
             )
