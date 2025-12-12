@@ -881,12 +881,26 @@ async def save_plan(travel_id: str, authorization: str = Header(default=None)):
                 if not auth.startswith("Bearer "):
                   auth = f"Bearer {auth}"
                 headers["Authorization"] = auth
+            
+            # DEBUG: 전송할 헤더 정보 출력
+            print("=" * 80)
+            print("[DEBUG] Spring Boot로 전송하는 헤더:")
+            print(f"Authorization: {headers.get('Authorization', 'None')}")
+            print("=" * 80)
+            
             # Spring Boot API 엔드포인트로 POST 요청
             response = await client.post(
                 f"{SPRING_BOOT_URL.rstrip()}/api/trip-plan/from-fastapi",
                 json=plan_data,
                 headers=headers
             )
+            
+            # DEBUG: Spring Boot 응답 상태 출력
+            print("=" * 80)
+            print(f"[DEBUG] Spring Boot 응답 상태: {response.status_code}")
+            if response.status_code != 200 and response.status_code != 201:
+                print(f"[DEBUG] 에러 응답: {response.text}")
+            print("=" * 80)
             
             if response.status_code == 200 or response.status_code == 201:
                 spring_response = response.json()
