@@ -48,19 +48,18 @@ class FeedbackInput(BaseModel):
     message: str
 
 class ScheduleItem(BaseModel):
-    order_index: int = Field(..., alias='orderIndex')  # JSON 출력: orderIndex, DB 저장: order_index
+    order_index: int  # JSON 출력: order_index (alias 제거)
     time: str
     title: str = Field(..., max_length=50)  # Spring: length 50
     description: str = Field(..., max_length=100)  # Spring: length 100
     
     class Config:
         populate_by_name = True  # orderIndex, order_index 모두 허용
-        by_alias = False  # JSON 출력 시 order_index 사용
     
     @model_validator(mode='before')
     @classmethod
     def convert_legacy_fields(cls, data):
-        """sequence나 index를 order_index로 변환"""
+        """sequence나 index나 orderIndex를 order_index로 변환"""
         if isinstance(data, dict):
             # orderIndex를 order_index로 변환
             if 'orderIndex' in data and 'order_index' not in data:
