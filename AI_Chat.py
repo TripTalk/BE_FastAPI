@@ -847,6 +847,12 @@ async def save_plan(travel_id: str):
     if "highlights" in plan_data and plan_data["highlights"]:
         plan_data["highlights"] = [h["content"] for h in plan_data["highlights"]]
     
+    # DEBUG: Spring Boot로 전송하는 데이터 출력
+    print("=" * 80)
+    print("[DEBUG] Spring Boot로 전송하는 JSON 데이터:")
+    print(json.dumps(plan_data, indent=2, ensure_ascii=False))
+    print("=" * 80)
+    
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             # Spring Boot API 엔드포인트로 POST 요청
