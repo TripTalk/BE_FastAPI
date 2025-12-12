@@ -878,9 +878,9 @@ async def save_plan(travel_id: str, authorization: str = Header(default=None)):
             headers = {"Content-Type": "application/json"}
             if authorization:
                 auth = authorization.strip()
-            if not auth.startswith("Bearer "):
-                auth = f"Bearer {auth}"
-            headers["Authorization"] = auth
+                if not auth.startswith("Bearer "):
+                  auth = f"Bearer {auth}"
+                headers["Authorization"] = auth
             # Spring Boot API 엔드포인트로 POST 요청
             response = await client.post(
                 f"{SPRING_BOOT_URL.rstrip()}/api/trip-plan/from-fastapi",
