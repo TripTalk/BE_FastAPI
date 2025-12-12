@@ -1,5 +1,6 @@
 from fastapi import FastAPI
-from fastapi import Body, Header
+from fastapi import Body, Header, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, model_validator
 from typing import List, Dict, Optional
 from enum import Enum
@@ -21,6 +22,7 @@ genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 SPRING_BOOT_URL = os.getenv("SPRING_BOOT_URL", "http://spring-server:8080")
 
 app = FastAPI()
+security = HTTPBearer(auto_error=False)
 
 class TravelStyle(str, Enum):
     ACTIVITY = "체험·액티비티"
@@ -829,7 +831,10 @@ async def delete_travel(travel_id: str):
     return {"message": f"여행 ID '{travel_id}'가 성공적으로 삭제되었습니다."}
 
 @app.post("/save-plan/{travel_id}")
-async def save_plan(travel_id: str, authorization: str = Header(default=None)):
+async def save_plan(
+    travel_id: str, 
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
     """여행 계획을 Spring Boot 서버로 전송하여 DB에 저장합니다."""
     if travel_id not in travel_summaries_store:
         return {"error": "여행 ID 없음", "success": False}
@@ -876,11 +881,9 @@ async def save_plan(travel_id: str, authorization: str = Header(default=None)):
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             headers = {"Content-Type": "application/json"}
-            if authorization:
-                auth = authorization.strip()
-                if not auth.startswith("Bearer "):
-                  auth = f"Bearer {auth}"
-                headers["Authorization"] = auth
+            if credentials:
+                # HTTPBearer를 사용하면 자동으로 "Bearer {token}" 형식
+                headers["Authorization"] = f"Bearer {credentials.credentials}"
             
             # DEBUG: 전송할 헤더 정보 출력
             print("=" * 80)
