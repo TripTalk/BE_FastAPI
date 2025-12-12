@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from fastapi import Body, Header
+from fastapi import Body
 from pydantic import BaseModel, Field, model_validator
 from typing import List, Dict, Optional
 from enum import Enum
@@ -813,7 +813,7 @@ async def delete_travel(travel_id: str):
     return {"message": f"여행 ID '{travel_id}'가 성공적으로 삭제되었습니다."}
 
 @app.post("/save-plan/{travel_id}")
-async def save_plan(travel_id: str, authorization: str = Header(default=None)):
+async def save_plan(travel_id: str):
     """여행 계획을 Spring Boot 서버로 전송하여 DB에 저장합니다."""
     if travel_id not in travel_summaries_store:
         return {"error": "여행 ID 없음", "success": False}
@@ -855,14 +855,11 @@ async def save_plan(travel_id: str, authorization: str = Header(default=None)):
     
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            headers = {"Content-Type": "application/json"}
-            if authorization:
-                headers["Authorization"] = authorization
             # Spring Boot API 엔드포인트로 POST 요청
             response = await client.post(
                 f"{SPRING_BOOT_URL}/api/trip-plan/from-fastapi",
                 json=plan_data,
-                headers=headers
+                headers={"Content-Type": "application/json"}
             )
             
             if response.status_code == 200 or response.status_code == 201:
