@@ -194,7 +194,7 @@ class TripPlan(BaseModel):
 
 ### Base URL
 ```
-Production: http://your-server-ip:8000
+Production: http://52.78.55.147:8000
 Local Development: http://localhost:8000
 ```
 
@@ -297,10 +297,10 @@ Response:
 
 ### 배포 환경
 
-현재 **Docker 기반으로 배포 운영 중**입니다.
+현재 **AWS EC2 (52.78.55.147)에 Docker Compose로 배포 운영 중**입니다.
 
 #### 서버 정보
-- **FastAPI Server**: http://your-server-ip:8000
+- **FastAPI Server**: http://52.78.55.147:8000
 - **Spring Boot Server**: http://52.78.55.147:8080
 
 #### Docker Compose로 실행
@@ -377,7 +377,7 @@ uvicorn AI_Chat:app --reload --host 0.0.0.0 --port 8000
 #### 5. API 테스트
 ```bash
 # 배포 서버 테스트
-curl http://your-server-ip:8000/travel-summaries
+curl http://52.78.55.147:8000/travel-summaries
 
 # 로컬 테스트
 curl http://localhost:8000/travel-summaries
@@ -504,7 +504,7 @@ public static class CreateFromFastAPIDTO {
          ▼                     ▼
 ┌─────────────────┐  ┌──────────────────┐
 │ travel_data.json│  │   MySQL (RDS)    │
-│   (로컬 저장)    │  │   (영구 저장)     │
+│   (로컬 저장)     │  │   (영구 저장)       │
 └─────────────────┘  └──────────────────┘
 ```
 
@@ -564,10 +564,15 @@ class TripPlan(BaseModel):
 |------------|-------------------|
 | **Feat** | 새로운 기능을 추가한 경우 |
 | **Fix** | 에러·버그를 수정한 경우 |
+| **Design** | CSS 등 UI 디자인을 변경한 경우 |
+| **HOTFIX** | 급하게 치명적인 에러를 즉시 수정한 경우 |
+| **Style** | 코드 포맷 변경, 세미콜론 누락 등 **로직 변경 없는** 스타일 수정 |
 | **Refactor** | 기능 변화 없이 코드를 리팩토링한 경우 |
+| **Comment** | 주석 추가 또는 변경 |
 | **Docs** | 문서를 수정한 경우 (README 등) |
-| **Style** | 코드 포맷 변경 (로직 변경 없음) |
-| **Chore** | 기타 변경사항 (빌드, 패키지 등) |
+| **Test** | 테스트 코드 추가·변경·리팩토링 |
+| **Chore** | 기타 변경사항 (빌드, 패키지, 설정 파일 수정 등) |
+| **Rename** | 파일·폴더명을 수정하거나 옮기는 경우 |
 
 ### 예시
 ```bash
