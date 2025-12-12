@@ -105,6 +105,18 @@ class TripPlan(BaseModel):
     returnTransportation: Optional[TripTransportation] = Field(default=None, alias='return_transportation')
     accommodations: List[TripAccommodation] = []  # 숙소 정보
     
+    @model_validator(mode='before')
+    @classmethod
+    def convert_highlights(cls, data):
+        """문자열 리스트를 TripHighlight 객체 리스트로 변환 (하위 호환성)"""
+        if isinstance(data, dict) and 'highlights' in data:
+            highlights = data['highlights']
+            if highlights and isinstance(highlights, list):
+                # 문자열 리스트인 경우 객체 리스트로 변환
+                if isinstance(highlights[0], str):
+                    data['highlights'] = [{'content': h} for h in highlights]
+        return data
+    
     class Config:
         populate_by_name = True  # snake_case와 camelCase 모두 허용
 class TripPlanResponse(BaseModel):
