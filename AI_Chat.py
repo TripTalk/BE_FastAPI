@@ -181,6 +181,14 @@ def remove_json_blocks(text: str) -> str:
     text = re.sub(r'```accommodations\s*\n.*?\n```', '', text, flags=re.DOTALL)
     return text.strip()
 
+def remove_ids(obj):
+    """dict/list 내부의 모든 id 필드를 제거 (재귀)"""
+    if isinstance(obj, dict):
+        obj.pop("id", None)
+        return {k: remove_ids(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [remove_ids(item) for item in obj]
+    return obj
 
 def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[DailySchedule]:
     """AI가 생성한 JSON 타임라인 추출"""
@@ -796,7 +804,7 @@ async def delete_travel(travel_id: str):
 async def save_plan(travel_id: str):
     """여행 계획을 Spring Boot 서버로 전송하여 DB에 저장합니다."""
     if travel_id not in travel_summaries_store:
-        return {"error": f"여행 ID '{travel_id}'를 찾을 수 없습니다.", "success": False}
+        return {"error": "여행 ID 없음", "success": False}
     
     travel_plan = travel_summaries_store[travel_id]
     
@@ -820,8 +828,8 @@ async def save_plan(travel_id: str):
     # JSON으로 변환 (camelCase 형식)
     plan_data = plan_response.model_dump(by_alias=True)
     
-    # id 필드 제거
-    plan_data.pop("id", None)
+    # 전체 데이터 구조에서 모든 id 제거
+    plan_data = remove_ids(plan_data)
     
     # highlights를 Spring Boot 형식으로 변환 (객체 리스트 → 문자열 리스트)
     if "highlights" in plan_data and plan_data["highlights"]:
