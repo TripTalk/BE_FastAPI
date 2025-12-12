@@ -23,12 +23,12 @@ SPRING_BOOT_URL = os.getenv("SPRING_BOOT_URL", "http://spring-server:8080")
 app = FastAPI()
 
 class TravelStyle(str, Enum):
-    ACTIVITY = "체험/액티비티"
+    ACTIVITY = "체험·액티비티"
     HOTPLACE = "SNS 핫플레이스"
     NATURE = "자연과 함께"
     MUST_VISIT = "유명 관광지는 필수"
     HEALING = "여유롭게 힐링"
-    CULTURE = "문화/예술/역사"
+    CULTURE = "문화·예술·역사"
     LOCAL_VIBE = "여행지 느낌 물씬"
     SHOPPING = "쇼핑은 열정적으로"
     FOOD_FOCUS = "관광보다 먹방"
@@ -46,7 +46,7 @@ class FeedbackInput(BaseModel):
     message: str
 
 class ScheduleItem(BaseModel):
-    orderIndex: int = Field(..., alias='order_index')
+    orderIndex: int
     time: str
     title: str = Field(..., max_length=50)  # Spring: length 50
     description: str = Field(..., max_length=100)  # Spring: length 100
@@ -201,6 +201,22 @@ def remove_ids(obj):
     elif isinstance(obj, list):
         return [remove_ids(item) for item in obj]
     return obj
+
+def parse_budget_to_long(budget_str: str) -> int:
+    """예산 문자열을 숫자(long)로 변환
+    예: '100만원' -> 1000000
+        '200만원' -> 2000000
+    """
+    import re
+    
+    # 숫자 추출 (만원 단위)
+    numbers = re.findall(r'(\d+)만', budget_str)
+    
+    if not numbers:
+        return 0  # 파싱 실패 시 0 반환
+    
+    # 첫 번째 숫자만 사용
+    return int(numbers[0]) * 10000
 
 def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[DailySchedule]:
     """AI가 생성한 JSON 타임라인 추출"""
@@ -846,6 +862,10 @@ async def save_plan(travel_id: str, authorization: str = Header(default=None)):
     # highlights를 Spring Boot 형식으로 변환 (객체 리스트 → 문자열 리스트)
     if "highlights" in plan_data and plan_data["highlights"]:
         plan_data["highlights"] = [h["content"] for h in plan_data["highlights"]]
+    
+    # budget을 long(숫자)으로 변환
+    if "budget" in plan_data and isinstance(plan_data["budget"], str):
+        plan_data["budget"] = parse_budget_to_long(plan_data["budget"])
     
     # DEBUG: Spring Boot로 전송하는 데이터 출력
     print("=" * 80)
