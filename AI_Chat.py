@@ -233,7 +233,7 @@ def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[D
                             orderIndex=idx,
                             time=item['time'],
                             title=item['title'][:50],  # 50자 제한
-                            description=item['description'][:100]  # 100자 제한
+                            description=item['description'][:30]  # 30자 제한
                         ))
                     
                     daily_schedules.append(DailySchedule(
@@ -254,7 +254,7 @@ def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[D
                                     orderIndex=idx,
                                     time=item['time'],
                                     title=item['title'][:50],  # 50자 제한
-                                    description=item['description'][:100]  # 100자 제한
+                                    description=item['description'][:30]  # 30자 제한
                                 ))
                             
                             daily_schedules.append(DailySchedule(
@@ -510,17 +510,17 @@ async def create_travel_plan(data: TravelInput = Body(...)):
 8. 예산이 명확히 부족하거나 과도할 때만 간단히 피드백을 추가하세요.
 9. [필수] 각 일자 섹션 마지막에 타임라인 JSON을 반드시 생성하세요:
    - 형식: ```json 코드 블록 사용
-   - 구조: {{"day": 숫자, "schedules": [{{"time": "HH:MM", "title": "활동명 (50자 이내)", "description": "상세 설명 (100자 이내)"}}]}}
+   - 구조: {{"day": 숫자, "schedules": [{{"time": "HH:MM", "title": "활동명 (50자 이내)", "description": "간결한 설명 (30자 이내)"}}]}}
    - description 작성 가이드:
-     * 100자 이내의 상세한 설명
-     * title과 잘 어울리는 자연스러운 표현 사용
-     * 음식점: "점심" 또는 "저녁"으로 표기 (예: "점심", "저녁")
-     * 카페: "카페"로 통일
-     * 관광/활동: 활동 성격 표현 (예: "등산과 전망", "바다 구경", "자연 탐방", "해변 드라이브")
-     * 이동: 이동 수단 표현 (예: "비행기 탑승", "차량 대여", "택시 이동")
-     * 숙소 체크인: 반드시 실제 숙소명 명시 (예: "제주 신라호텔", "파라다이스호텔")
-     * 숙소 체크아웃: 반드시 실제 숙소명 명시 (예: "제주 신라호텔", "파라다이스호텔")
-     * 휴식: "자유시간", "호텔 휴식" 등
+     * 30자 이내의 간결한 핵심 설명만 작성
+     * title과 중복되지 않도록 핵심만 표현
+     * 음식점: "점심" 또는 "저녁"으로만 표기
+     * 카페: "카페 방문" 또는 "휴식"
+     * 관광/활동: 핵심 활동만 (예: "등산", "해변 산책", "드라이브")
+     * 이동: 이동 수단만 (예: "비행기 탑승", "렌터카 픽업")
+     * 숙소 체크인: 숙소명만 명시 (예: "신라호텔 체크인")
+     * 숙소 체크아웃: 숙소명만 명시 (예: "신라호텔 체크아웃")
+     * 휴식: "휴식" 또는 "자유시간"
    - 모든 활동을 시간순으로 포함 (공항, 렌터카, 카페, 식사, 관광, 체크인 등)
    - 숙소 체크인/체크아웃 시간 규칙:
      * 체크인: 일반적으로 15:00~18:00 사이 (호텔/펜션 표준)
