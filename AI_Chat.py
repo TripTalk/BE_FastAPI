@@ -48,25 +48,29 @@ class FeedbackInput(BaseModel):
     message: str
 
 class ScheduleItem(BaseModel):
-    orderIndex: int
+    order_index: int = Field(..., alias='orderIndex')  # JSON 출력: orderIndex, DB 저장: order_index
     time: str
     title: str = Field(..., max_length=50)  # Spring: length 50
     description: str = Field(..., max_length=100)  # Spring: length 100
     
     class Config:
         populate_by_name = True  # orderIndex, order_index 모두 허용
+        by_alias = False  # JSON 출력 시 order_index 사용
     
     @model_validator(mode='before')
     @classmethod
     def convert_legacy_fields(cls, data):
-        """sequence나 index를 orderIndex로 변환"""
+        """sequence나 index를 order_index로 변환"""
         if isinstance(data, dict):
-            # sequence를 orderIndex로 변환
-            if 'sequence' in data and 'orderIndex' not in data and 'order_index' not in data:
-                data['orderIndex'] = data.pop('sequence')
-            # index를 orderIndex로 변환
-            elif 'index' in data and 'orderIndex' not in data and 'order_index' not in data:
-                data['orderIndex'] = data.pop('index')
+            # orderIndex를 order_index로 변환
+            if 'orderIndex' in data and 'order_index' not in data:
+                data['order_index'] = data.pop('orderIndex')
+            # sequence를 order_index로 변환
+            elif 'sequence' in data and 'order_index' not in data and 'orderIndex' not in data:
+                data['order_index'] = data.pop('sequence')
+            # index를 order_index로 변환
+            elif 'index' in data and 'order_index' not in data and 'orderIndex' not in data:
+                data['order_index'] = data.pop('index')
         return data
 
 class TripHighlight(BaseModel):
@@ -248,7 +252,7 @@ def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[D
                     schedules = []
                     for idx, item in enumerate(timeline_data.get('schedules', []), start=1):
                         schedules.append(ScheduleItem(
-                            orderIndex=idx,
+                            order_index=idx,
                             time=item['time'],
                             title=item['title'][:50],  # 50자 제한
                             description=item['description'][:30]  # 30자 제한
@@ -269,7 +273,7 @@ def extract_timeline_from_plan(plan: str, original_input: TravelInput) -> List[D
                             schedules = []
                             for idx, item in enumerate(day_data.get('schedules', []), start=1):
                                 schedules.append(ScheduleItem(
-                                    orderIndex=idx,
+                                    order_index=idx,
                                     time=item['time'],
                                     title=item['title'][:50],  # 50자 제한
                                     description=item['description'][:30]  # 30자 제한
