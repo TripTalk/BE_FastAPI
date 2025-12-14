@@ -881,6 +881,12 @@ async def save_plan(
     if "endDate" in plan_data:
         plan_data["endDate"] = plan_data["endDate"].replace(".", "-")
     
+    # dailySchedules 내부의 date 필드도 변환
+    if "dailySchedules" in plan_data and plan_data["dailySchedules"]:
+        for schedule in plan_data["dailySchedules"]:
+            if "date" in schedule and isinstance(schedule["date"], str):
+                schedule["date"] = schedule["date"].replace(".", "-")
+    
     # travelStyles 검증
     if "travelStyles" in plan_data:
         print(f"[DEBUG] travelStyles type: {type(plan_data['travelStyles'])}")
