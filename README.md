@@ -9,7 +9,7 @@
   <tr>
     <!-- 사진 + 이름 행 -->
     <td align="center">
-      <a href="https://github.com/Yujin">
+      <a href="https://github.com/Yujin1219">
         <img
           width="170"
           src="https://avatars.githubusercontent.com/Yujin1219"
