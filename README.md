@@ -1,6 +1,69 @@
 # 🤖 TripTalk AI Server - FastAPI
 
 > Google Gemini 2.0 Flash 기반 맞춤형 여행 일정 생성 AI 서버
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/385c2e64-02f5-45a6-8868-732c572acc85" />
+
+## 👥 팀 정보
+<div align="center">
+  <table>
+  <tr>
+    <!-- 사진 + 이름 행 -->
+    <td align="center">
+      <a href="https://github.com/Yujin">
+        <img
+          width="170"
+          src="https://avatars.githubusercontent.com/Yujin1219"
+          alt="유진"
+        />
+        <br />
+        유진
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/jooyoi">
+        <img
+          width="170"
+          src="https://avatars.githubusercontent.com/jooyoi"
+          alt="홍주영"
+        />
+        <br />
+        홍주영
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/ys1217-gg">
+        <img
+          width="170"
+          src="https://avatars.githubusercontent.com/ys1217-gg"
+          alt="황요성"
+        />
+        <br />
+        황요성
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/davidcho0701">
+        <img
+          width="170"
+          src="https://avatars.githubusercontent.com/davidcho0701"
+          alt="조성빈"
+        />
+        <br />
+        조성빈
+      </a>
+    </td>
+  </tr>
+
+  <!-- 역할 행 -->
+  <tr>
+    <td align="center"><b>Lead, BE</b></td>
+    <td align="center"><b>AI</b></td>
+    <td align="center"><b>FE</b></td>
+    <td align="center"><b>FE</b></td>
+  </tr>
+</table>
+
+</div>
 
 ## 📋 목차
 - [프로젝트 개요](#-프로젝트-개요)
@@ -15,6 +78,8 @@
 ---
 
 ## 🎯 프로젝트 개요
+
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/b4468b0b-ea93-4951-ad74-1953a22be098" />
 
 **TripTalk AI Server**는 사용자의 여행 스타일, 목적지, 예산, 동행인 정보를 기반으로 
 Google Gemini 2.0 Flash API를 활용하여 **맞춤형 여행 일정을 자동 생성**하는 FastAPI 기반 AI 서버입니다.
@@ -47,6 +112,7 @@ Google Gemini 2.0 Flash API를 활용하여 **맞춤형 여행 일정을 자동 
 - **하이라이트 추출**
   - 여행의 주요 포인트 3-5개 자동 생성
   - 각 하이라이트 100자 이내
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/a951ba00-18d7-4da0-ad47-86a9f17c41e3" />
 
 ### 2. 📋 여행 계획 관리
 - **JSON 파일 기반 저장**
@@ -57,6 +123,7 @@ Google Gemini 2.0 Flash API를 활용하여 **맞춤형 여행 일정을 자동 
 - **여행 목록 조회**
   - 전체 여행 목록 반환
   - 특정 여행 상세 조회
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/30622c1b-8bbf-47ea-9d20-bd8407af553b" />
 
 ### 3. 🔗 Spring Boot 연동
 - **HTTP POST 통신**
