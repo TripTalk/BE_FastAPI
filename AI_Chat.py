@@ -875,6 +875,22 @@ async def save_plan(
     if "budget" in plan_data and isinstance(plan_data["budget"], str):
         plan_data["budget"] = parse_budget_to_long(plan_data["budget"])
     
+    # 날짜 형식 변환 (YYYY.MM.DD → YYYY-MM-DD)
+    if "startDate" in plan_data:
+        plan_data["startDate"] = plan_data["startDate"].replace(".", "-")
+    if "endDate" in plan_data:
+        plan_data["endDate"] = plan_data["endDate"].replace(".", "-")
+    
+    # travelStyles 검증
+    if "travelStyles" in plan_data:
+        print(f"[DEBUG] travelStyles type: {type(plan_data['travelStyles'])}")
+        print(f"[DEBUG] travelStyles value: {plan_data['travelStyles']}")
+    
+    # 날짜 형식 검증
+    print(f"[DEBUG] startDate: {plan_data.get('startDate')}, type: {type(plan_data.get('startDate'))}")
+    print(f"[DEBUG] endDate: {plan_data.get('endDate')}, type: {type(plan_data.get('endDate'))}")
+    print(f"[DEBUG] budget: {plan_data.get('budget')}, type: {type(plan_data.get('budget'))}")
+    
     # DEBUG: Spring Boot로 전송하는 데이터 출력
     print("=" * 80)
     print("[DEBUG] Spring Boot로 전송하는 JSON 데이터:")
